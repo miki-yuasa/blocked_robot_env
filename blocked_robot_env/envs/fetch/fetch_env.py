@@ -1,12 +1,159 @@
 import numpy as np
 from numpy.typing import NDArray
 
-from gymnasium.utils import EzPickle
-from gymnasium_robotics.envs.fetch.fetch_env import MujocoFetchEnv
+from gymnasium_robotics.envs.fetch.fetch_env import MujocoFetchEnv, goal_distance
+from gymnasium_robotics.envs.robot_env import MujocoRobotEnv
 from gymnasium_robotics.utils import rotations
 
 
-class MujocoBlockedFetchEnv(MujocoFetchEnv):
+class BaseFetchEnv(MujocoRobotEnv):
+    """Superclass for all Fetch environments."""
+
+    def __init__(
+        self,
+        gripper_extra_height,
+        block_gripper,
+        has_object: bool,
+        target_in_the_air,
+        target_offset,
+        obj_range,
+        target_range,
+        distance_threshold,
+        reward_type,
+        **kwargs,
+    ):
+        """Initializes a new Fetch environment.
+
+        Args:
+            model_path (string): path to the environments XML file
+            n_substeps (int): number of substeps the simulation runs on every call to step
+            gripper_extra_height (float): additional height above the table when positioning the gripper
+            block_gripper (boolean): whether or not the gripper is blocked (i.e. not movable) or not
+            has_object (boolean): whether or not the environment has an object
+            target_in_the_air (boolean): whether or not the target should be in the air above the table or on the table surface
+            target_offset (float or array with 3 elements): offset of the target
+            obj_range (float): range of a uniform distribution for sampling initial object positions
+            target_range (float): range of a uniform distribution for sampling a target
+            distance_threshold (float): the threshold after which a goal is considered achieved
+            initial_qpos (dict): a dictionary of joint names and values that define the initial configuration
+            reward_type ('sparse' or 'dense'): the reward type, i.e. sparse or dense
+        """
+
+        self.gripper_extra_height = gripper_extra_height
+        self.block_gripper = block_gripper
+        self.has_object = has_object
+        self.target_in_the_air = target_in_the_air
+        self.target_offset = target_offset
+        self.obj_range = obj_range
+        self.target_range = target_range
+        self.distance_threshold = distance_threshold
+        self.reward_type = reward_type
+
+        super().__init__(n_actions=4, **kwargs)
+
+    # GoalEnv methods
+    # ----------------------------
+
+    def compute_reward(self, achieved_goal, goal, info):
+        # Compute distance between goal and the achieved goal.
+        d = goal_distance(achieved_goal, goal)
+        if self.reward_type == "sparse":
+            return -(d > self.distance_threshold).astype(np.float32)
+        else:
+            return -d
+
+    # RobotEnv methods
+    # ----------------------------
+
+    def _set_action(self, action):
+        assert action.shape == (4,)
+        action = (
+            action.copy()
+        )  # ensure that we don't change the action outside of this scope
+        pos_ctrl, gripper_ctrl = action[:3], action[3]
+
+        pos_ctrl *= 0.05  # limit maximum change in position
+        rot_ctrl = [
+            1.0,
+            0.0,
+            1.0,
+            0.0,
+        ]  # fixed rotation of the end effector, expressed as a quaternion
+        gripper_ctrl = np.array([gripper_ctrl, gripper_ctrl])
+        assert gripper_ctrl.shape == (2,)
+        if self.block_gripper:
+            gripper_ctrl = np.zeros_like(gripper_ctrl)
+        action = np.concatenate([pos_ctrl, rot_ctrl, gripper_ctrl])
+
+        return action
+
+    def _get_obs(self):
+        (
+            grip_pos,
+            object_pos,
+            object_rel_pos,
+            gripper_state,
+            object_rot,
+            object_velp,
+            object_velr,
+            grip_velp,
+            gripper_vel,
+        ) = self.generate_mujoco_observations()
+
+        if not self.has_object:
+            achieved_goal = grip_pos.copy()
+        else:
+            achieved_goal = np.squeeze(object_pos.copy())
+
+        obs = np.concatenate(
+            [
+                grip_pos,
+                object_pos.ravel(),
+                object_rel_pos.ravel(),
+                gripper_state,
+                object_rot.ravel(),
+                object_velp.ravel(),
+                object_velr.ravel(),
+                grip_velp,
+                gripper_vel,
+            ]
+        )
+
+        return {
+            "observation": obs.copy(),
+            "achieved_goal": achieved_goal.copy(),
+            "desired_goal": self.goal.copy(),
+        }
+
+    def generate_mujoco_observations(self):
+
+        raise NotImplementedError
+
+    def _get_gripper_xpos(self):
+
+        raise NotImplementedError
+
+    def _sample_goal(self):
+        if self.has_object:
+            goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
+                -self.target_range, self.target_range, size=3
+            )
+            goal += self.target_offset
+            goal[2] = self.height_offset
+            if self.target_in_the_air and self.np_random.uniform() < 0.5:
+                goal[2] += self.np_random.uniform(0, 0.45)
+        else:
+            goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
+                -self.target_range, self.target_range, size=3
+            )
+        return goal.copy()
+
+    def _is_success(self, achieved_goal, desired_goal):
+        d = goal_distance(achieved_goal, desired_goal)
+        return (d < self.distance_threshold).astype(np.float32)
+
+
+class MujocoBlockedFetchEnv(BaseFetchEnv):
     def __init__(self, reward_type="dense", **kwargs):
         super().__init__(reward_type, **kwargs)
 
