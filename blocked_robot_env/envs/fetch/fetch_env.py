@@ -292,6 +292,25 @@ class MujocoBlockedFetchEnv(BaseBlockedFetchEnv):
                 self.model, self.data, "object0:joint", object_qpos
             )
 
+            # Randomize start position of block.
+            block_xpos = self.initial_gripper_xpos[:2]
+            # Ensure block is not placed on top of object and is not too close to the gripper
+            while (
+                np.linalg.norm(block_xpos - self.initial_gripper_xpos[:2]) < 0.1
+                or np.linalg.norm(block_xpos - object_xpos) < 0.1
+            ):
+                block_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
+                    -self.obj_range, self.obj_range, size=2
+                )
+            block_qpos = self._utils.get_joint_qpos(
+                self.model, self.data, "object1:joint"
+            )
+            assert block_qpos.shape == (7,)
+            block_qpos[:2] = block_xpos
+            self._utils.set_joint_qpos(
+                self.model, self.data, "object1:joint", block_qpos
+            )
+
         self._mujoco.mj_forward(self.model, self.data)
         return True
 
