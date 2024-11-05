@@ -3,7 +3,7 @@ from gymnasium.utils.ezpickle import EzPickle
 
 from blocked_robot_env.envs.fetch.fetch_env import MujocoBlockedFetchEnv
 
-MODEL_XML_PATH = os.path.join("fetch", "pick_and_place.xml")
+MODEL_XML_PATH = os.path.join("fetch", "blocked_pick_and_place.xml")
 
 
 class MujocoBlockedFetchPickAndPlaceEnv(MujocoBlockedFetchEnv, EzPickle):

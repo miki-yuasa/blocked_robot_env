@@ -1,9 +1,11 @@
+from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from gymnasium_robotics.envs.fetch.fetch_env import MujocoFetchEnv, goal_distance
-from gymnasium_robotics.envs.robot_env import MujocoRobotEnv
+from gymnasium_robotics.envs.fetch.fetch_env import goal_distance, DEFAULT_CAMERA_CONFIG
 from gymnasium_robotics.utils import rotations
+
+from blocked_robot_env.envs.robot_env import MujocoRobotEnv
 
 
 class BaseFetchEnv(MujocoRobotEnv):
@@ -11,15 +13,15 @@ class BaseFetchEnv(MujocoRobotEnv):
 
     def __init__(
         self,
-        gripper_extra_height,
-        block_gripper,
+        gripper_extra_height:float,
+        block_gripper:bool,
         has_object: bool,
-        target_in_the_air,
-        target_offset,
-        obj_range,
-        target_range,
-        distance_threshold,
-        reward_type,
+        target_in_the_air: bool,
+        target_offset: float|NDArray[np.float64],
+        obj_range: float,
+        target_range: float,
+        distance_threshold: float,
+        reward_type: Literal["sparse", "dense"],
         **kwargs,
     ):
         """Initializes a new Fetch environment.
@@ -154,8 +156,25 @@ class BaseFetchEnv(MujocoRobotEnv):
 
 
 class MujocoBlockedFetchEnv(BaseFetchEnv):
-    def __init__(self, reward_type="dense", **kwargs):
-        super().__init__(reward_type, **kwargs)
+    def __init__(self, default_camera_config: dict = DEFAULT_CAMERA_CONFIG, **kwargs):
+        super().__init__(default_camera_config=default_camera_config, **kwargs)
+    
+    def _step_callback(self):
+        if self.block_gripper:
+            self._utils.set_joint_qpos(
+                self.model, self.data, "robot0:l_gripper_finger_joint", 0.0
+            )
+            self._utils.set_joint_qpos(
+                self.model, self.data, "robot0:r_gripper_finger_joint", 0.0
+            )
+            self._mujoco.mj_forward(self.model, self.data)
+
+    def _set_action(self, action):
+        action = super()._set_action(action)
+
+        # Apply action to simulation.
+        self._utils.ctrl_set_action(self.model, self.data, action)
+        self._utils.mocap_set_action(self.model, self.data, action)
 
     def _get_obs(self) -> dict[str, NDArray[np.float64]]:
         (
@@ -272,6 +291,20 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
             grip_velp,
             gripper_vel,
         )
+    
+    def _get_gripper_xpos(self):
+        body_id = self._model_names.body_name2id["robot0:gripper_link"]
+        return self.data.xpos[body_id]
+
+    def _render_callback(self):
+        # Visualize target.
+        sites_offset = (self.data.site_xpos - self.model.site_pos).copy()
+        site_id = self._mujoco.mj_name2id(
+            self.model, self._mujoco.mjtObj.mjOBJ_SITE, "target0"
+        )
+        self.model.site_pos[site_id] = self.goal - sites_offset[0]
+        self._mujoco.mj_forward(self.model, self.data)
+
 
     def _reset_sim(self) -> bool:
         self.data.time = self.initial_time
@@ -298,3 +331,30 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
 
         self._mujoco.mj_forward(self.model, self.data)
         return True
+    
+    def _env_setup(self, initial_qpos:dict[str, NDArray[np.float64]]) -> None:
+        for name, value in initial_qpos.items():
+            self._utils.set_joint_qpos(self.model, self.data, name, value)
+        self._utils.reset_mocap_welds(self.model, self.data)
+        self._mujoco.mj_forward(self.model, self.data)
+
+        # Move end effector into position.
+        gripper_target = np.array(
+            [-0.498, 0.005, -0.431 + self.gripper_extra_height]
+        ) + self._utils.get_site_xpos(self.model, self.data, "robot0:grip")
+        gripper_rotation = np.array([1.0, 0.0, 1.0, 0.0])
+        self._utils.set_mocap_pos(self.model, self.data, "robot0:mocap", gripper_target)
+        self._utils.set_mocap_quat(
+            self.model, self.data, "robot0:mocap", gripper_rotation
+        )
+        for _ in range(10):
+            self._mujoco.mj_step(self.model, self.data, nstep=self.n_substeps)
+        # Extract information for sampling goals.
+        self.initial_gripper_xpos = self._utils.get_site_xpos(
+            self.model, self.data, "robot0:grip"
+        ).copy()
+        if self.has_object:
+            self.height_offset = self._utils.get_site_xpos(
+                self.model, self.data, "object0"
+            )[2]
+
