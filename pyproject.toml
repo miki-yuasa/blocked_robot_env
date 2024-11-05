@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "blocked-robot-env"
+version = "0.1.0"
+description = "Gymnasium robotics environments with blocks that robots have to avoid"
+authors = ["Mikihisa Yuasa <myuasa2@illinois.edu>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+gymnasium-robotics = "^1.3.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
