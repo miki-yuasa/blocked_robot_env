@@ -1,0 +1,1 @@
+from blocked_robot_env.envs.fetch.fetch_env import MujocoBlockedFetchEnv
