@@ -9,6 +9,7 @@ from blocked_robot_env.envs.fetch.pick_and_place import (
 
 def test_env_init() -> None:
     animation_save_path: str = "tests/out/plots/test_blocked_pick_and_place_env.gif"
+    os.environ["MUJOCO_GL"] = "osmesa"
     env = MujocoBlockedFetchPickAndPlaceEnv(
         render_mode="rgb_array",
     )

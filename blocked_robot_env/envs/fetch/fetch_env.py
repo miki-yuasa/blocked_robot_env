@@ -89,37 +89,44 @@ class BaseFetchEnv(MujocoRobotEnv):
 
         return action
 
-    def _get_obs(self):
+    def _get_obs(self) -> dict[str, NDArray[np.float64]]:
         (
             grip_pos,
             object_pos,
+            block_pos,
             object_rel_pos,
+            block_rel_pos,
             gripper_state,
             object_rot,
+            block_rot,
             object_velp,
             object_velr,
+            block_velp,
+            block_velr,
             grip_velp,
             gripper_vel,
         ) = self.generate_mujoco_observations()
-
-        if not self.has_object:
-            achieved_goal = grip_pos.copy()
-        else:
-            achieved_goal = np.squeeze(object_pos.copy())
 
         obs = np.concatenate(
             [
                 grip_pos,
                 object_pos.ravel(),
+                block_pos.ravel(),
                 object_rel_pos.ravel(),
+                block_rel_pos.ravel(),
                 gripper_state,
                 object_rot.ravel(),
+                block_rot.ravel(),
                 object_velp.ravel(),
                 object_velr.ravel(),
-                grip_velp,
-                gripper_vel,
+                block_velp.ravel(),
+                block_velr.ravel(),
+                grip_velp.ravel(),
+                gripper_vel.ravel(),
             ]
         )
+
+        achieved_goal = np.squeeze(object_pos.copy())
 
         return {
             "observation": obs.copy(),
@@ -176,51 +183,6 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
         self._utils.ctrl_set_action(self.model, self.data, action)
         self._utils.mocap_set_action(self.model, self.data, action)
 
-    def _get_obs(self) -> dict[str, NDArray[np.float64]]:
-        (
-            grip_pos,
-            object_pos,
-            block_pos,
-            object_rel_pos,
-            block_rel_pos,
-            gripper_state,
-            object_rot,
-            block_rot,
-            object_velp,
-            object_velr,
-            block_velp,
-            block_velr,
-            grip_velp,
-            gripper_vel,
-        ) = self.generate_mujoco_observations()
-
-        obs = np.concatenate(
-            [
-                grip_pos,
-                object_pos.ravel(),
-                block_pos.ravel(),
-                object_rel_pos.ravel(),
-                block_rel_pos.ravel(),
-                gripper_state,
-                object_rot.ravel(),
-                block_rot.ravel(),
-                object_velp.ravel(),
-                object_velr.ravel(),
-                block_velp.ravel(),
-                block_velr.ravel(),
-                grip_velp.ravel(),
-                gripper_vel.ravel(),
-            ]
-        )
-
-        achieved_goal = np.squeeze(object_pos.copy())
-
-        return {
-            "observation": obs.copy(),
-            "achieved_goal": achieved_goal.copy(),
-            "desired_goal": self.goal.copy(),
-        }
-
     def generate_mujoco_observations(self) -> tuple[NDArray[np.float64], ...]:
         # positions
         grip_pos = self._utils.get_site_xpos(self.model, self.data, "robot0:grip")
@@ -251,7 +213,7 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
             object_velp -= grip_velp
 
             # Add the block position, rotation, velocity, and angular velocity to the observation (from "object1")
-            block_pos: NDArray[np.float64] = self.sim.data.get_site_xpos("object1")
+            block_pos: NDArray[np.float64] = self._utils.get_site_xpos(self.model, self.data, "object1")
             block_rot: NDArray[np.float64] = rotations.mat2euler(
                 self._utils.get_site_xmat(self.model, self.data, "object1")
             )
