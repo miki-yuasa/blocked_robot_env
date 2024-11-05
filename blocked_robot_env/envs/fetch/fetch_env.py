@@ -8,16 +8,16 @@ from gymnasium_robotics.utils import rotations
 from blocked_robot_env.envs.robot_env import MujocoRobotEnv
 
 
-class BaseFetchEnv(MujocoRobotEnv):
+class BaseBlockedFetchEnv(MujocoRobotEnv):
     """Superclass for all Fetch environments."""
 
     def __init__(
         self,
-        gripper_extra_height:float,
-        block_gripper:bool,
+        gripper_extra_height: float,
+        block_gripper: bool,
         has_object: bool,
         target_in_the_air: bool,
-        target_offset: float|NDArray[np.float64],
+        target_offset: float | NDArray[np.float64],
         obj_range: float,
         target_range: float,
         distance_threshold: float,
@@ -162,10 +162,10 @@ class BaseFetchEnv(MujocoRobotEnv):
         return (d < self.distance_threshold).astype(np.float32)
 
 
-class MujocoBlockedFetchEnv(BaseFetchEnv):
+class MujocoBlockedFetchEnv(BaseBlockedFetchEnv):
     def __init__(self, default_camera_config: dict = DEFAULT_CAMERA_CONFIG, **kwargs):
         super().__init__(default_camera_config=default_camera_config, **kwargs)
-    
+
     def _step_callback(self):
         if self.block_gripper:
             self._utils.set_joint_qpos(
@@ -213,7 +213,9 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
             object_velp -= grip_velp
 
             # Add the block position, rotation, velocity, and angular velocity to the observation (from "object1")
-            block_pos: NDArray[np.float64] = self._utils.get_site_xpos(self.model, self.data, "object1")
+            block_pos: NDArray[np.float64] = self._utils.get_site_xpos(
+                self.model, self.data, "object1"
+            )
             block_rot: NDArray[np.float64] = rotations.mat2euler(
                 self._utils.get_site_xmat(self.model, self.data, "object1")
             )
@@ -253,7 +255,7 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
             grip_velp,
             gripper_vel,
         )
-    
+
     def _get_gripper_xpos(self):
         body_id = self._model_names.body_name2id["robot0:gripper_link"]
         return self.data.xpos[body_id]
@@ -266,7 +268,6 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
         )
         self.model.site_pos[site_id] = self.goal - sites_offset[0]
         self._mujoco.mj_forward(self.model, self.data)
-
 
     def _reset_sim(self) -> bool:
         self.data.time = self.initial_time
@@ -293,8 +294,8 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
 
         self._mujoco.mj_forward(self.model, self.data)
         return True
-    
-    def _env_setup(self, initial_qpos:dict[str, NDArray[np.float64]]) -> None:
+
+    def _env_setup(self, initial_qpos: dict[str, NDArray[np.float64]]) -> None:
         for name, value in initial_qpos.items():
             self._utils.set_joint_qpos(self.model, self.data, name, value)
         self._utils.reset_mocap_welds(self.model, self.data)
@@ -319,4 +320,3 @@ class MujocoBlockedFetchEnv(BaseFetchEnv):
             self.height_offset = self._utils.get_site_xpos(
                 self.model, self.data, "object0"
             )[2]
-
