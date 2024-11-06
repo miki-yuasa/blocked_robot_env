@@ -100,7 +100,12 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
 
                 # Penalize if the distance between the block and the gripper is closer than that between the desired goal and block
                 if block_gripper_distance < block_goal_distance:
-                    penalty: float = -(block_goal_distance - block_gripper_distance)
+                    # Penalize by 100 if the block is in the gripper within a certain threshold
+                    penalty: float = (
+                        -100
+                        if block_gripper_distance < self.distance_threshold
+                        else -(block_goal_distance - block_gripper_distance)
+                    )
                     penalties.append(penalty)
                 else:
                     pass
@@ -115,8 +120,13 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
     # RobotEnv methods
     # ----------------------------
 
-    def reset(self) -> tuple[dict[str, NDArray[np.float64]], dict[str, Any]]:
-        obs, _ = super().reset()
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: int | None = None,
+    ) -> tuple[dict[str, NDArray[np.float64]], dict[str, Any]]:
+        obs, _ = super().reset(seed=seed, options=options)
         info = self._get_info()
 
         self.step_count: int = 0
@@ -126,15 +136,29 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
     def step(
         self, action
     ) -> tuple[dict[str, NDArray[np.float64]], float, bool, bool, dict[str, Any]]:
-        self.step_count += 1
+        obs, reward, terminated, truncated, _ = super().step(action)
 
-        obs, reward, terminated, _, _ = super().step(action)
-
-        info: dict[str, Any] = self._get_info()
-
-        truncated: bool = self.step_count >= self.max_episode_steps
-
+        info = self._get_info()
         return obs, reward, terminated, truncated, info
+
+    def compute_terminated(
+        self,
+        achieved_goal: NDArray[np.float64],
+        desired_goal: NDArray[np.float64],
+        info: dict[str, Any],
+    ) -> bool:
+        # Terminate if the gripper is within a certain distance of the block
+        info: dict[str, NDArray[np.float64]] = self._get_info()
+        block_rel_pos: NDArray[np.float64] = info["block_rel_pos"]
+        return np.linalg.norm(block_rel_pos) < self.distance_threshold
+
+    def compute_truncated(
+        self,
+        achieved_goal: NDArray[np.float64],
+        desired_goal: NDArray[np.float64],
+        info: dict[str, Any],
+    ) -> bool:
+        return self.step_count >= self.max_episode_steps
 
     def _set_action(self, action):
         assert action.shape == (4,)
@@ -279,6 +303,8 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         return (d < self.distance_threshold).astype(np.float32)
 
     def _step_callback(self):
+        self.step_count += 1
+
         if self.block_gripper:
             self._utils.set_joint_qpos(
                 self.model, self.data, "robot0:l_gripper_finger_joint", 0.0

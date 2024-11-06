@@ -28,7 +28,7 @@ def test_env_init() -> None:
         else:
             pass
 
-    assert step_count == env.max_episode_steps
+    assert step_count <= env.max_episode_steps
 
     os.makedirs(os.path.dirname(animation_save_path), exist_ok=True)
     imageio.mimsave(animation_save_path, frames, fps=30)
