@@ -86,7 +86,8 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             for info_dict in info:
                 block_pos: NDArray[np.float64] = info_dict["block_pos"]
                 block_rel_pos: NDArray[np.float64] = info_dict["block_rel_pos"]
-                desired_goal: NDArray[np.float64] = info_dict["desired_goal"]
+                object_pos: NDArray[np.float64] = info_dict["object_pos"]
+                desired_goal: NDArray[np.float64] = info_dict["goal"]
 
                 # Compute the distance between the block and the gripper
                 block_gripper_distance: NDArray[np.float64] = np.linalg.norm(
@@ -98,17 +99,31 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                     block_pos - desired_goal
                 )
 
+                init_block_pos: NDArray[np.float64] = info_dict["init_block_pos"]
+                init_object_pos: NDArray[np.float64] = info_dict["init_object_pos"]
+
+                block_move_distance: NDArray[np.float64] = np.linalg.norm(
+                    block_pos - init_block_pos
+                )
+
+                penalty: float = 0.0
                 # Penalize if the distance between the block and the gripper is closer than that between the desired goal and block
                 if block_gripper_distance < block_goal_distance:
-                    # Penalize by 100 if the block is in the gripper within a certain threshold
-                    penalty: float = (
-                        -100
-                        if block_gripper_distance < self.distance_threshold
-                        else -(block_goal_distance - block_gripper_distance)
-                    )
-                    penalties.append(penalty)
+                    penalty += -(block_goal_distance - block_gripper_distance)
                 else:
                     pass
+                # Penalize if the block moves
+                if block_move_distance > self.distance_threshold:
+                    penalty += -100.0
+                else:
+                    pass
+                # Penalize if the object falls off the table
+                if init_object_pos[2] - object_pos[2] > self.distance_threshold:
+                    penalty += -100.0
+                else:
+                    pass
+
+                penalties.append(penalty)
 
             if len(penalties) == 1:
                 reward += penalties[0]
@@ -136,9 +151,29 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
     def step(
         self, action
     ) -> tuple[dict[str, NDArray[np.float64]], float, bool, bool, dict[str, Any]]:
-        obs, reward, terminated, truncated, _ = super().step(action)
+        if np.array(action).shape != self.action_space.shape:
+            raise ValueError("Action dimension mismatch")
+
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        self._set_action(action)
+
+        self._mujoco_step(action)
+
+        self._step_callback()
+
+        if self.render_mode == "human":
+            self.render()
+        obs: dict[str, NDArray[np.float64]] = self._get_obs()
 
         info = self._get_info()
+
+        terminated: bool = self.compute_terminated(
+            obs["achieved_goal"], self.goal, info
+        )
+        truncated: bool = self.compute_truncated(obs["achieved_goal"], self.goal, info)
+
+        reward: float = self.compute_reward(obs["achieved_goal"], self.goal, info)
+
         return obs, reward, terminated, truncated, info
 
     def compute_terminated(
@@ -150,7 +185,13 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         # Terminate if the gripper is within a certain distance of the block
         info: dict[str, NDArray[np.float64]] = self._get_info()
         block_rel_pos: NDArray[np.float64] = info["block_rel_pos"]
-        return np.linalg.norm(block_rel_pos) < self.distance_threshold
+        block_moved: bool = np.linalg.norm(block_rel_pos) < self.distance_threshold
+        # Terminate if the object falls off the table
+        object_pos: NDArray[np.float64] = info["object_pos"]
+        init_object_pos: NDArray[np.float64] = info["init_object_pos"]
+        object_fell: bool = init_object_pos[2] - object_pos[2] > self.distance_threshold
+
+        return block_moved or object_fell
 
     def compute_truncated(
         self,
@@ -272,16 +313,11 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         info: dict[str, NDArray[np.float64]] = self._get_dict_obs()
         normal_obs: dict[str, NDArray[np.float64]] = self._get_obs()
         info["is_success"] = self._is_success(normal_obs["achieved_goal"], self.goal)
+        info["init_object_pos"] = self.init_object_pos
+        info["init_block_pos"] = self.init_block_pos
+        info["goal"] = self.goal
 
         return info
-
-    def generate_mujoco_observations(self):
-
-        raise NotImplementedError
-
-    def _get_gripper_xpos(self):
-
-        raise NotImplementedError
 
     def _sample_goal(self):
         if self.has_object:
@@ -441,6 +477,14 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             self._utils.set_joint_qpos(
                 self.model, self.data, "object1:joint", block_qpos
             )
+
+            # Record the initial object and block positions
+            self.init_object_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
+                self.model, self.data, "object0:joint"
+            )[:3]
+            self.init_block_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
+                self.model, self.data, "object1:joint"
+            )[:3]
 
         self._mujoco.mj_forward(self.model, self.data)
         return True

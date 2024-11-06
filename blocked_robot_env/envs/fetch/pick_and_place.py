@@ -127,7 +127,7 @@ class MujocoBlockedFetchPickAndPlaceEnv(MujocoBlockedFetchEnv, EzPickle):
     * v1: the environment depends on `mujoco_py` which is no longer maintained.
     """
 
-    def __init__(self, reward_type="sparse", **kwargs):
+    def __init__(self, reward_type="dense", **kwargs):
         initial_qpos = {
             "robot0:slide0": 0.405,
             "robot0:slide1": 0.48,
