@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
@@ -8,7 +8,7 @@ from gymnasium_robotics.utils import rotations
 from blocked_robot_env.envs.robot_env import MujocoRobotEnv
 
 
-class BaseBlockedFetchEnv(MujocoRobotEnv):
+class MujocoBlockedFetchEnv(MujocoRobotEnv):
     """Superclass for all Fetch environments."""
 
     def __init__(
@@ -22,6 +22,7 @@ class BaseBlockedFetchEnv(MujocoRobotEnv):
         target_range: float,
         distance_threshold: float,
         reward_type: Literal["sparse", "dense"],
+        default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
         **kwargs,
     ):
         """Initializes a new Fetch environment.
@@ -51,18 +52,78 @@ class BaseBlockedFetchEnv(MujocoRobotEnv):
         self.distance_threshold = distance_threshold
         self.reward_type = reward_type
 
-        super().__init__(n_actions=4, **kwargs)
+        super().__init__(
+            n_actions=4, default_camera_config=default_camera_config, **kwargs
+        )
+
+    def step(
+        self, action
+    ) -> tuple[dict[str, NDArray[np.float64]], float, bool, bool, dict[str, Any]]:
+        obs, reward, terminated, truncated, _ = super().step(action)
+
+        info: dict[str, Any] = self._get_info()
+
+        return obs, reward, terminated, truncated, info
+
+    def reset(self) -> tuple[dict[str, NDArray[np.float64]], dict[str, Any]]:
+        obs, _ = super().reset()
+        info = self._get_info()
+
+        return obs, info
 
     # GoalEnv methods
     # ----------------------------
 
-    def compute_reward(self, achieved_goal, goal, info):
+    def compute_reward(
+        self,
+        achieved_goal: NDArray[np.float64],
+        goal: NDArray[np.float64],
+        info: dict[str, Any] | list[dict[str, Any]],
+    ):
         # Compute distance between goal and the achieved goal.
-        d = goal_distance(achieved_goal, goal)
+        d: NDArray[np.float64] = goal_distance(achieved_goal, goal)
+
         if self.reward_type == "sparse":
             return -(d > self.distance_threshold).astype(np.float32)
         else:
-            return -d
+            reward: NDArray[np.float64] = -d
+
+            # Penalize if the distance between the gripper and block is closer than that between the desired goal and block
+            # Make the info dict as a list if it is not already
+            if not isinstance(info, list):
+                info = [info]
+            else:
+                pass
+            penalties: list[float] = []
+
+            for info_dict in info:
+                block_pos: NDArray[np.float64] = info_dict["block_pos"]
+                block_rel_pos: NDArray[np.float64] = info_dict["block_rel_pos"]
+                desired_goal: NDArray[np.float64] = info_dict["desired_goal"]
+
+                # Compute the distance between the block and the gripper
+                block_gripper_distance: NDArray[np.float64] = np.linalg.norm(
+                    block_rel_pos
+                )
+
+                # Compute the distance between the block and the desired goal
+                block_goal_distance: NDArray[np.float64] = np.linalg.norm(
+                    block_pos - desired_goal
+                )
+
+                # Penalize if the distance between the block and the gripper is closer than that between the desired goal and block
+                if block_gripper_distance < block_goal_distance:
+                    penalty: float = -(block_goal_distance - block_gripper_distance)
+                    penalties.append(penalty)
+                else:
+                    pass
+
+            if len(penalties) == 1:
+                reward += penalties[0]
+            elif len(penalties) > 1:
+                reward += np.array(penalties)
+
+            return reward
 
     # RobotEnv methods
     # ----------------------------
@@ -86,6 +147,10 @@ class BaseBlockedFetchEnv(MujocoRobotEnv):
         if self.block_gripper:
             gripper_ctrl = np.zeros_like(gripper_ctrl)
         action = np.concatenate([pos_ctrl, rot_ctrl, gripper_ctrl])
+
+        # Apply action to simulation.
+        self._utils.ctrl_set_action(self.model, self.data, action)
+        self._utils.mocap_set_action(self.model, self.data, action)
 
         return action
 
@@ -134,6 +199,50 @@ class BaseBlockedFetchEnv(MujocoRobotEnv):
             "desired_goal": self.goal.copy(),
         }
 
+    def _get_dict_obs(self) -> dict[str, NDArray[np.float64]]:
+        (
+            grip_pos,
+            object_pos,
+            block_pos,
+            object_rel_pos,
+            block_rel_pos,
+            gripper_state,
+            object_rot,
+            block_rot,
+            object_velp,
+            object_velr,
+            block_velp,
+            block_velr,
+            grip_velp,
+            gripper_vel,
+        ) = self.generate_mujoco_observations()
+
+        dict_obs: dict[str, NDArray[np.float64]] = {
+            "grip_pos": grip_pos,
+            "object_pos": object_pos,
+            "block_pos": block_pos,
+            "object_rel_pos": object_rel_pos,
+            "block_rel_pos": block_rel_pos,
+            "gripper_state": gripper_state,
+            "object_rot": object_rot,
+            "block_rot": block_rot,
+            "object_velp": object_velp,
+            "object_velr": object_velr,
+            "block_velp": block_velp,
+            "block_velr": block_velr,
+            "grip_velp": grip_velp,
+            "gripper_vel": gripper_vel,
+        }
+
+        return dict_obs
+
+    def _get_info(self) -> dict[str, Any]:
+        info: dict[str, NDArray[np.float64]] = self._get_dict_obs()
+        normal_obs: dict[str, NDArray[np.float64]] = self._get_obs()
+        info["is_success"] = self._is_success(normal_obs["achieved_goal"], self.goal)
+
+        return info
+
     def generate_mujoco_observations(self):
 
         raise NotImplementedError
@@ -161,11 +270,6 @@ class BaseBlockedFetchEnv(MujocoRobotEnv):
         d = goal_distance(achieved_goal, desired_goal)
         return (d < self.distance_threshold).astype(np.float32)
 
-
-class MujocoBlockedFetchEnv(BaseBlockedFetchEnv):
-    def __init__(self, default_camera_config: dict = DEFAULT_CAMERA_CONFIG, **kwargs):
-        super().__init__(default_camera_config=default_camera_config, **kwargs)
-
     def _step_callback(self):
         if self.block_gripper:
             self._utils.set_joint_qpos(
@@ -175,13 +279,6 @@ class MujocoBlockedFetchEnv(BaseBlockedFetchEnv):
                 self.model, self.data, "robot0:r_gripper_finger_joint", 0.0
             )
             self._mujoco.mj_forward(self.model, self.data)
-
-    def _set_action(self, action):
-        action = super()._set_action(action)
-
-        # Apply action to simulation.
-        self._utils.ctrl_set_action(self.model, self.data, action)
-        self._utils.mocap_set_action(self.model, self.data, action)
 
     def generate_mujoco_observations(self) -> tuple[NDArray[np.float64], ...]:
         # positions
@@ -339,3 +436,182 @@ class MujocoBlockedFetchEnv(BaseBlockedFetchEnv):
             self.height_offset = self._utils.get_site_xpos(
                 self.model, self.data, "object0"
             )[2]
+
+
+# class MujocoBlockedFetchEnvOld(BaseBlockedFetchEnv):
+#     def __init__(self, default_camera_config: dict = DEFAULT_CAMERA_CONFIG, **kwargs):
+#         super().__init__(default_camera_config=default_camera_config, **kwargs)
+
+#     def _step_callback(self):
+#         if self.block_gripper:
+#             self._utils.set_joint_qpos(
+#                 self.model, self.data, "robot0:l_gripper_finger_joint", 0.0
+#             )
+#             self._utils.set_joint_qpos(
+#                 self.model, self.data, "robot0:r_gripper_finger_joint", 0.0
+#             )
+#             self._mujoco.mj_forward(self.model, self.data)
+
+#     def _set_action(self, action):
+#         action = super()._set_action(action)
+
+#         # Apply action to simulation.
+#         self._utils.ctrl_set_action(self.model, self.data, action)
+#         self._utils.mocap_set_action(self.model, self.data, action)
+
+#     def generate_mujoco_observations(self) -> tuple[NDArray[np.float64], ...]:
+#         # positions
+#         grip_pos = self._utils.get_site_xpos(self.model, self.data, "robot0:grip")
+
+#         dt = self.n_substeps * self.model.opt.timestep
+#         grip_velp = (
+#             self._utils.get_site_xvelp(self.model, self.data, "robot0:grip") * dt
+#         )
+
+#         robot_qpos, robot_qvel = self._utils.robot_get_obs(
+#             self.model, self.data, self._model_names.joint_names
+#         )
+#         if self.has_object:
+#             object_pos = self._utils.get_site_xpos(self.model, self.data, "object0")
+#             # rotations
+#             object_rot = rotations.mat2euler(
+#                 self._utils.get_site_xmat(self.model, self.data, "object0")
+#             )
+#             # velocities
+#             object_velp = (
+#                 self._utils.get_site_xvelp(self.model, self.data, "object0") * dt
+#             )
+#             object_velr = (
+#                 self._utils.get_site_xvelr(self.model, self.data, "object0") * dt
+#             )
+#             # gripper state
+#             object_rel_pos = object_pos - grip_pos
+#             object_velp -= grip_velp
+
+#             # Add the block position, rotation, velocity, and angular velocity to the observation (from "object1")
+#             block_pos: NDArray[np.float64] = self._utils.get_site_xpos(
+#                 self.model, self.data, "object1"
+#             )
+#             block_rot: NDArray[np.float64] = rotations.mat2euler(
+#                 self._utils.get_site_xmat(self.model, self.data, "object1")
+#             )
+#             block_velp = (
+#                 self._utils.get_site_xvelp(self.model, self.data, "object1") * dt
+#             )
+#             block_velr = (
+#                 self._utils.get_site_xvelr(self.model, self.data, "object1") * dt
+#             )
+#             # gripper state
+#             block_rel_pos = block_pos - grip_pos
+#             block_velp -= grip_velp
+#         else:
+#             object_pos = object_rot = object_velp = object_velr = object_rel_pos = (
+#                 np.zeros(0)
+#             )
+
+#         gripper_state = robot_qpos[-2:]
+
+#         gripper_vel = (
+#             robot_qvel[-2:] * dt
+#         )  # change to a scalar if the gripper is made symmetric
+
+#         return (
+#             grip_pos,
+#             object_pos,
+#             block_pos,
+#             object_rel_pos,
+#             block_rel_pos,
+#             gripper_state,
+#             object_rot,
+#             block_rot,
+#             object_velp,
+#             object_velr,
+#             block_velp,
+#             block_velr,
+#             grip_velp,
+#             gripper_vel,
+#         )
+
+#     def _get_gripper_xpos(self):
+#         body_id = self._model_names.body_name2id["robot0:gripper_link"]
+#         return self.data.xpos[body_id]
+
+#     def _render_callback(self):
+#         # Visualize target.
+#         sites_offset = (self.data.site_xpos - self.model.site_pos).copy()
+#         site_id = self._mujoco.mj_name2id(
+#             self.model, self._mujoco.mjtObj.mjOBJ_SITE, "target0"
+#         )
+#         self.model.site_pos[site_id] = self.goal - sites_offset[0]
+#         self._mujoco.mj_forward(self.model, self.data)
+
+#     def _reset_sim(self) -> bool:
+#         self.data.time = self.initial_time
+#         self.data.qpos[:] = np.copy(self.initial_qpos)
+#         self.data.qvel[:] = np.copy(self.initial_qvel)
+#         if self.model.na != 0:
+#             self.data.act[:] = None
+
+#         # Randomize start position of object.
+#         if self.has_object:
+#             object_xpos = self.initial_gripper_xpos[:2]
+#             while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < 0.1:
+#                 object_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
+#                     -self.obj_range, self.obj_range, size=2
+#                 )
+#             object_qpos = self._utils.get_joint_qpos(
+#                 self.model, self.data, "object0:joint"
+#             )
+#             assert object_qpos.shape == (7,)
+#             object_qpos[:2] = object_xpos
+#             self._utils.set_joint_qpos(
+#                 self.model, self.data, "object0:joint", object_qpos
+#             )
+
+#             # Randomize start position of block.
+#             block_xpos = self.initial_gripper_xpos[:2]
+#             # Ensure block is not placed on top of object and is not too close to the gripper
+#             while (
+#                 np.linalg.norm(block_xpos - self.initial_gripper_xpos[:2]) < 0.1
+#                 or np.linalg.norm(block_xpos - object_xpos) < 0.1
+#             ):
+#                 block_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
+#                     -self.obj_range, self.obj_range, size=2
+#                 )
+#             block_qpos = self._utils.get_joint_qpos(
+#                 self.model, self.data, "object1:joint"
+#             )
+#             assert block_qpos.shape == (7,)
+#             block_qpos[:2] = block_xpos
+#             self._utils.set_joint_qpos(
+#                 self.model, self.data, "object1:joint", block_qpos
+#             )
+
+#         self._mujoco.mj_forward(self.model, self.data)
+#         return True
+
+#     def _env_setup(self, initial_qpos: dict[str, NDArray[np.float64]]) -> None:
+#         for name, value in initial_qpos.items():
+#             self._utils.set_joint_qpos(self.model, self.data, name, value)
+#         self._utils.reset_mocap_welds(self.model, self.data)
+#         self._mujoco.mj_forward(self.model, self.data)
+
+#         # Move end effector into position.
+#         gripper_target = np.array(
+#             [-0.498, 0.005, -0.431 + self.gripper_extra_height]
+#         ) + self._utils.get_site_xpos(self.model, self.data, "robot0:grip")
+#         gripper_rotation = np.array([1.0, 0.0, 1.0, 0.0])
+#         self._utils.set_mocap_pos(self.model, self.data, "robot0:mocap", gripper_target)
+#         self._utils.set_mocap_quat(
+#             self.model, self.data, "robot0:mocap", gripper_rotation
+#         )
+#         for _ in range(10):
+#             self._mujoco.mj_step(self.model, self.data, nstep=self.n_substeps)
+#         # Extract information for sampling goals.
+#         self.initial_gripper_xpos = self._utils.get_site_xpos(
+#             self.model, self.data, "robot0:grip"
+#         ).copy()
+#         if self.has_object:
+#             self.height_offset = self._utils.get_site_xpos(
+#                 self.model, self.data, "object0"
+#             )[2]
