@@ -58,27 +58,6 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             n_actions=4, default_camera_config=default_camera_config, **kwargs
         )
 
-    def step(
-        self, action
-    ) -> tuple[dict[str, NDArray[np.float64]], float, bool, bool, dict[str, Any]]:
-        self.step_count += 1
-
-        obs, reward, terminated, _, _ = super().step(action)
-
-        info: dict[str, Any] = self._get_info()
-
-        truncated: bool = self.step_count >= self.max_episode_steps
-
-        return obs, reward, terminated, truncated, info
-
-    def reset(self) -> tuple[dict[str, NDArray[np.float64]], dict[str, Any]]:
-        obs, _ = super().reset()
-        info = self._get_info()
-
-        self.step_count: int = 0
-
-        return obs, info
-
     # GoalEnv methods
     # ----------------------------
 
@@ -135,6 +114,27 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
 
     # RobotEnv methods
     # ----------------------------
+
+    def step(
+        self, action
+    ) -> tuple[dict[str, NDArray[np.float64]], float, bool, bool, dict[str, Any]]:
+        self.step_count += 1
+
+        obs, reward, terminated, _, _ = super().step(action)
+
+        info: dict[str, Any] = self._get_info()
+
+        truncated: bool = self.step_count >= self.max_episode_steps
+
+        return obs, reward, terminated, truncated, info
+
+    def reset(self) -> tuple[dict[str, NDArray[np.float64]], dict[str, Any]]:
+        obs, _ = super().reset()
+        info = self._get_info()
+
+        self.step_count: int = 0
+
+        return obs, info
 
     def _set_action(self, action):
         assert action.shape == (4,)
