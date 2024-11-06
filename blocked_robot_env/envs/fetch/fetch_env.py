@@ -115,6 +115,14 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
     # RobotEnv methods
     # ----------------------------
 
+    def reset(self) -> tuple[dict[str, NDArray[np.float64]], dict[str, Any]]:
+        obs, _ = super().reset()
+        info = self._get_info()
+
+        self.step_count: int = 0
+
+        return obs, info
+
     def step(
         self, action
     ) -> tuple[dict[str, NDArray[np.float64]], float, bool, bool, dict[str, Any]]:
@@ -127,14 +135,6 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         truncated: bool = self.step_count >= self.max_episode_steps
 
         return obs, reward, terminated, truncated, info
-
-    def reset(self) -> tuple[dict[str, NDArray[np.float64]], dict[str, Any]]:
-        obs, _ = super().reset()
-        info = self._get_info()
-
-        self.step_count: int = 0
-
-        return obs, info
 
     def _set_action(self, action):
         assert action.shape == (4,)
