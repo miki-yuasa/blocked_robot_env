@@ -108,7 +108,7 @@ class MujocoBlockedFetchPickAndPlaceEnv(MujocoBlockedFetchEnv, EzPickle):
 
     ## Episode End
 
-    The episode will be `truncated` when the duration reaches a total of `max_episode_steps` which by default is set to 50 timesteps.
+    The episode will be `truncated` when the duration reaches a total of `max_episode_steps` which by default is set to 100 timesteps.
     The episode is never `terminated` since the task is continuing with infinite horizon.
 
     ## Arguments
