@@ -22,8 +22,11 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         target_range: float,
         distance_threshold: float,
         reward_type: Literal["sparse", "dense"],
+        penalty_type: Literal["sparse", "dense"],
         default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
         max_episode_steps: int = 100,
+        dense_penalty_coef: float = 0.1,
+        sparse_penalty_value: float = -100.0,
         **kwargs,
     ):
         """Initializes a new Fetch environment.
@@ -43,16 +46,19 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             reward_type ('sparse' or 'dense'): the reward type, i.e. sparse or dense
         """
 
-        self.gripper_extra_height = gripper_extra_height
-        self.block_gripper = block_gripper
-        self.has_object = has_object
-        self.target_in_the_air = target_in_the_air
-        self.target_offset = target_offset
-        self.obj_range = obj_range
-        self.target_range = target_range
-        self.distance_threshold = distance_threshold
-        self.reward_type = reward_type
+        self.gripper_extra_height: float = gripper_extra_height
+        self.block_gripper: bool = block_gripper
+        self.has_object: bool = has_object
+        self.target_in_the_air: bool = target_in_the_air
+        self.target_offset: float | NDArray[np.float64] = target_offset
+        self.obj_range: float = obj_range
+        self.target_range: float = target_range
+        self.distance_threshold: float = distance_threshold
+        self.reward_type: Literal["sparse", "dense"] = reward_type
+        self.penalty_type: Literal["sparse", "dense"] = penalty_type
         self.max_episode_steps: int = max_episode_steps
+        self.dense_penalty_coef: float = dense_penalty_coef
+        self.sparse_penalty_value: float = sparse_penalty_value
 
         super().__init__(
             n_actions=4, default_camera_config=default_camera_config, **kwargs
@@ -108,19 +114,21 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 )
 
                 penalty: float = 0.0
-                # Penalize if the distance between the block and the gripper is closer than that between the desired goal and block
-                if block_gripper_distance < block_goal_distance:
-                    penalty += -(block_goal_distance - block_gripper_distance)
+                # Give dense penalty based on the distance between the gripper and the block
+                if self.penalty_type == "dense":
+                    penalty += -self.dense_penalty_coef * (
+                        block_goal_distance - block_gripper_distance
+                    )
                 else:
                     pass
                 # Penalize if the block moves
                 if block_move_distance > self.distance_threshold:
-                    penalty += -100.0
+                    penalty += self.sparse_penalty_value
                 else:
                     pass
                 # Penalize if the object falls off the table
                 if init_object_pos[2] - object_pos[2] > self.distance_threshold:
-                    penalty += -100.0
+                    penalty += self.sparse_penalty_value
                 else:
                     pass
 

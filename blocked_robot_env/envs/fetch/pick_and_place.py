@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 from gymnasium.utils.ezpickle import EzPickle
 
 from blocked_robot_env.envs.fetch.fetch_env import MujocoBlockedFetchEnv
@@ -127,7 +128,15 @@ class MujocoBlockedFetchPickAndPlaceEnv(MujocoBlockedFetchEnv, EzPickle):
     * v1: the environment depends on `mujoco_py` which is no longer maintained.
     """
 
-    def __init__(self, reward_type="dense", **kwargs):
+    def __init__(
+        self,
+        reward_type: Literal["sparse", "dense"] = "dense",
+        penalty_type: Literal["sparse", "dense"] = "dense",
+        dense_penalty_coef: float = 0.1,
+        sparse_penalty_value: float = -100.0,
+        max_episode_steps: int = 100,
+        **kwargs
+    ):
         initial_qpos = {
             "robot0:slide0": 0.405,
             "robot0:slide1": 0.48,
@@ -149,6 +158,10 @@ class MujocoBlockedFetchPickAndPlaceEnv(MujocoBlockedFetchEnv, EzPickle):
             distance_threshold=0.05,
             initial_qpos=initial_qpos,
             reward_type=reward_type,
+            penalty_type=penalty_type,
+            max_episode_steps=max_episode_steps,
+            dense_penalty_coef=dense_penalty_coef,
+            sparse_penalty_value=sparse_penalty_value,
             **kwargs,
         )
         EzPickle.__init__(self, reward_type=reward_type, **kwargs)
