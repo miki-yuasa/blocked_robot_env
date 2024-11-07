@@ -77,10 +77,11 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
 
             # Penalize if the distance between the gripper and block is closer than that between the desired goal and block
             # Make the info dict as a list if it is not already
-            if not isinstance(info, list):
+            if isinstance(info, dict):
                 info = [info]
             else:
                 pass
+
             penalties: list[float] = []
 
             for info_dict in info:
