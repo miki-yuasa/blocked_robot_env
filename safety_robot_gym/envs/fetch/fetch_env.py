@@ -352,7 +352,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
     def _step_callback(self):
         self.step_count += 1
 
-        if self.obstacle_gripper:
+        if self.block_gripper:
             self._utils.set_joint_qpos(
                 self.model, self.data, "robot0:l_gripper_finger_joint", 0.0
             )
