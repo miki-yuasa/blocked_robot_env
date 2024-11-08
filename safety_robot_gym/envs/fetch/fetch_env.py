@@ -81,7 +81,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         else:
             reward: NDArray[np.float64] = -d
 
-            # Penalize if the distance between the gripper and block is closer than that between the desired goal and block
+            # Penalize if the distance between the gripper and obstacle is closer than that between the desired goal and obstacle
             # Make the info dict as a list if it is not already
             if isinstance(info, dict):
                 info = [info]
@@ -91,38 +91,38 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             penalties: list[float] = []
 
             for info_dict in info:
-                block_pos: NDArray[np.float64] = info_dict["block_pos"]
-                block_rel_pos: NDArray[np.float64] = info_dict["block_rel_pos"]
+                obstacle_pos: NDArray[np.float64] = info_dict["obstacle_pos"]
+                obstacle_rel_pos: NDArray[np.float64] = info_dict["obstacle_rel_pos"]
                 object_pos: NDArray[np.float64] = info_dict["object_pos"]
                 desired_goal: NDArray[np.float64] = info_dict["goal"]
 
-                # Compute the distance between the block and the gripper
-                block_gripper_distance: NDArray[np.float64] = np.linalg.norm(
-                    block_rel_pos
+                # Compute the distance between the obstacle and the gripper
+                obstacle_gripper_distance: NDArray[np.float64] = np.linalg.norm(
+                    obstacle_rel_pos
                 )
 
-                # Compute the distance between the block and the desired goal
-                block_goal_distance: NDArray[np.float64] = np.linalg.norm(
-                    block_pos - desired_goal
+                # Compute the distance between the obstacle and the desired goal
+                obstacle_goal_distance: NDArray[np.float64] = np.linalg.norm(
+                    obstacle_pos - desired_goal
                 )
 
-                init_block_pos: NDArray[np.float64] = info_dict["init_block_pos"]
+                init_obstacle_pos: NDArray[np.float64] = info_dict["init_obstacle_pos"]
                 init_object_pos: NDArray[np.float64] = info_dict["init_object_pos"]
 
-                block_move_distance: NDArray[np.float64] = np.linalg.norm(
-                    block_pos - init_block_pos
+                obstacle_move_distance: NDArray[np.float64] = np.linalg.norm(
+                    obstacle_pos - init_obstacle_pos
                 )
 
                 penalty: float = 0.0
-                # Give dense penalty based on the distance between the gripper and the block
+                # Give dense penalty based on the distance between the gripper and the obstacle
                 if self.penalty_type == "dense":
                     penalty += -self.dense_penalty_coef * (
-                        block_goal_distance - block_gripper_distance
+                        obstacle_goal_distance - obstacle_gripper_distance
                     )
                 else:
                     pass
-                # Penalize if the block moves
-                if block_move_distance > self.distance_threshold:
+                # Penalize if the obstacle moves
+                if obstacle_move_distance > self.distance_threshold:
                     penalty += self.sparse_penalty_value
                 else:
                     pass
@@ -191,16 +191,18 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         desired_goal: NDArray[np.float64],
         info: dict[str, Any],
     ) -> bool:
-        # Terminate if the gripper is within a certain distance of the block
+        # Terminate if the gripper is within a certain distance of the obstacle
         info: dict[str, NDArray[np.float64]] = self._get_info()
-        block_rel_pos: NDArray[np.float64] = info["block_rel_pos"]
-        block_moved: bool = np.linalg.norm(block_rel_pos) < self.distance_threshold
+        obstacle_rel_pos: NDArray[np.float64] = info["obstacle_rel_pos"]
+        obstacle_moved: bool = (
+            np.linalg.norm(obstacle_rel_pos) < self.distance_threshold
+        )
         # Terminate if the object falls off the table
         object_pos: NDArray[np.float64] = info["object_pos"]
         init_object_pos: NDArray[np.float64] = info["init_object_pos"]
         object_fell: bool = init_object_pos[2] - object_pos[2] > self.distance_threshold
 
-        return block_moved or object_fell
+        return obstacle_moved or object_fell
 
     def compute_truncated(
         self,
@@ -240,16 +242,16 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         (
             grip_pos,
             object_pos,
-            block_pos,
+            obstacle_pos,
             object_rel_pos,
-            block_rel_pos,
+            obstacle_rel_pos,
             gripper_state,
             object_rot,
-            block_rot,
+            obstacle_rot,
             object_velp,
             object_velr,
-            block_velp,
-            block_velr,
+            obstacle_velp,
+            obstacle_velr,
             grip_velp,
             gripper_vel,
         ) = self.generate_mujoco_observations()
@@ -258,16 +260,16 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             [
                 grip_pos,
                 object_pos.ravel(),
-                block_pos.ravel(),
+                obstacle_pos.ravel(),
                 object_rel_pos.ravel(),
-                block_rel_pos.ravel(),
+                obstacle_rel_pos.ravel(),
                 gripper_state,
                 object_rot.ravel(),
-                block_rot.ravel(),
+                obstacle_rot.ravel(),
                 object_velp.ravel(),
                 object_velr.ravel(),
-                block_velp.ravel(),
-                block_velr.ravel(),
+                obstacle_velp.ravel(),
+                obstacle_velr.ravel(),
                 grip_velp.ravel(),
                 gripper_vel.ravel(),
             ]
@@ -285,16 +287,16 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         (
             grip_pos,
             object_pos,
-            block_pos,
+            obstacle_pos,
             object_rel_pos,
-            block_rel_pos,
+            obstacle_rel_pos,
             gripper_state,
             object_rot,
-            block_rot,
+            obstacle_rot,
             object_velp,
             object_velr,
-            block_velp,
-            block_velr,
+            obstacle_velp,
+            obstacle_velr,
             grip_velp,
             gripper_vel,
         ) = self.generate_mujoco_observations()
@@ -302,16 +304,16 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         dict_obs: dict[str, NDArray[np.float64]] = {
             "grip_pos": grip_pos,
             "object_pos": object_pos,
-            "block_pos": block_pos,
+            "obstacle_pos": obstacle_pos,
             "object_rel_pos": object_rel_pos,
-            "block_rel_pos": block_rel_pos,
+            "obstacle_rel_pos": obstacle_rel_pos,
             "gripper_state": gripper_state,
             "object_rot": object_rot,
-            "block_rot": block_rot,
+            "obstacle_rot": obstacle_rot,
             "object_velp": object_velp,
             "object_velr": object_velr,
-            "block_velp": block_velp,
-            "block_velr": block_velr,
+            "obstacle_velp": obstacle_velp,
+            "obstacle_velr": obstacle_velr,
             "grip_velp": grip_velp,
             "gripper_vel": gripper_vel,
         }
@@ -323,7 +325,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         normal_obs: dict[str, NDArray[np.float64]] = self._get_obs()
         info["is_success"] = self._is_success(normal_obs["achieved_goal"], self.goal)
         info["init_object_pos"] = self.init_object_pos
-        info["init_block_pos"] = self.init_block_pos
+        info["init_obstacle_pos"] = self.init_obstacle_pos
         info["goal"] = self.goal
 
         return info
@@ -350,7 +352,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
     def _step_callback(self):
         self.step_count += 1
 
-        if self.block_gripper:
+        if self.obstacle_gripper:
             self._utils.set_joint_qpos(
                 self.model, self.data, "robot0:l_gripper_finger_joint", 0.0
             )
@@ -388,22 +390,22 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             object_rel_pos = object_pos - grip_pos
             object_velp -= grip_velp
 
-            # Add the block position, rotation, velocity, and angular velocity to the observation (from "object1")
-            block_pos: NDArray[np.float64] = self._utils.get_site_xpos(
+            # Add the obstacle position, rotation, velocity, and angular velocity to the observation (from "object1")
+            obstacle_pos: NDArray[np.float64] = self._utils.get_site_xpos(
                 self.model, self.data, "object1"
             )
-            block_rot: NDArray[np.float64] = rotations.mat2euler(
+            obstacle_rot: NDArray[np.float64] = rotations.mat2euler(
                 self._utils.get_site_xmat(self.model, self.data, "object1")
             )
-            block_velp = (
+            obstacle_velp = (
                 self._utils.get_site_xvelp(self.model, self.data, "object1") * dt
             )
-            block_velr = (
+            obstacle_velr = (
                 self._utils.get_site_xvelr(self.model, self.data, "object1") * dt
             )
             # gripper state
-            block_rel_pos = block_pos - grip_pos
-            block_velp -= grip_velp
+            obstacle_rel_pos = obstacle_pos - grip_pos
+            obstacle_velp -= grip_velp
         else:
             object_pos = object_rot = object_velp = object_velr = object_rel_pos = (
                 np.zeros(0)
@@ -418,16 +420,16 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         return (
             grip_pos,
             object_pos,
-            block_pos,
+            obstacle_pos,
             object_rel_pos,
-            block_rel_pos,
+            obstacle_rel_pos,
             gripper_state,
             object_rot,
-            block_rot,
+            obstacle_rot,
             object_velp,
             object_velr,
-            block_velp,
-            block_velr,
+            obstacle_velp,
+            obstacle_velr,
             grip_velp,
             gripper_vel,
         )
@@ -468,30 +470,30 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 self.model, self.data, "object0:joint", object_qpos
             )
 
-            # Randomize start position of block.
-            block_xpos = self.initial_gripper_xpos[:2]
-            # Ensure block is not placed on top of object and is not too close to the gripper
+            # Randomize start position of obstacle.
+            obstacle_xpos = self.initial_gripper_xpos[:2]
+            # Ensure obstacle is not placed on top of object and is not too close to the gripper
             while (
-                np.linalg.norm(block_xpos - self.initial_gripper_xpos[:2]) < 0.1
-                or np.linalg.norm(block_xpos - object_xpos) < 0.1
+                np.linalg.norm(obstacle_xpos - self.initial_gripper_xpos[:2]) < 0.1
+                or np.linalg.norm(obstacle_xpos - object_xpos) < 0.1
             ):
-                block_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
+                obstacle_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
                     -self.obj_range, self.obj_range, size=2
                 )
-            block_qpos = self._utils.get_joint_qpos(
+            obstacle_qpos = self._utils.get_joint_qpos(
                 self.model, self.data, "object1:joint"
             )
-            assert block_qpos.shape == (7,)
-            block_qpos[:2] = block_xpos
+            assert obstacle_qpos.shape == (7,)
+            obstacle_qpos[:2] = obstacle_xpos
             self._utils.set_joint_qpos(
-                self.model, self.data, "object1:joint", block_qpos
+                self.model, self.data, "object1:joint", obstacle_qpos
             )
 
-            # Record the initial object and block positions
+            # Record the initial object and obstacle positions
             self.init_object_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
                 self.model, self.data, "object0:joint"
             )[:3]
-            self.init_block_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
+            self.init_obstacle_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
                 self.model, self.data, "object1:joint"
             )[:3]
 

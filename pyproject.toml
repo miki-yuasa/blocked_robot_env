@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "safety-robot-gym"
 version = "0.1.0"
-description = "Gymnasium robotics environments with blocks that robots have to avoid"
+description = "Gymnasium robotics environments with obstacles that robots have to avoid"
 authors = ["Mikihisa Yuasa <myuasa2@illinois.edu>"]
 license = "MIT"
 readme = "README.md"
