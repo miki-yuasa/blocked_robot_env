@@ -6,7 +6,7 @@ import imageio
 from stable_baselines3 import SAC, HerReplayBuffer
 from stable_baselines3.common.callbacks import CheckpointCallback
 
-from blocked_robot_env.envs.fetch import MujocoBlockedFetchPickAndPlaceEnv
+from safety_robot_gym.envs.fetch import MujocoBlockedFetchPickAndPlaceEnv
 
 gpu_id: int = 1
 total_timesteps: int = 1_000_000

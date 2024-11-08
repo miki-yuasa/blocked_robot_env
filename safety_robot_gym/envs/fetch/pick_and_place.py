@@ -2,7 +2,7 @@ import os
 from typing import Literal
 from gymnasium.utils.ezpickle import EzPickle
 
-from blocked_robot_env.envs.fetch.fetch_env import MujocoBlockedFetchEnv
+from safety_robot_gym.envs.fetch.fetch_env import MujocoBlockedFetchEnv
 
 MODEL_XML_PATH = os.path.join("fetch", "blocked_pick_and_place.xml")
 

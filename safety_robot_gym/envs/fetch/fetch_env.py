@@ -5,7 +5,7 @@ from numpy.typing import NDArray
 from gymnasium_robotics.envs.fetch.fetch_env import goal_distance, DEFAULT_CAMERA_CONFIG
 from gymnasium_robotics.utils import rotations
 
-from blocked_robot_env.envs.robot_env import MujocoRobotEnv
+from safety_robot_gym.envs.robot_env import MujocoRobotEnv
 
 
 class MujocoBlockedFetchEnv(MujocoRobotEnv):
