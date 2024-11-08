@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "blocked-robot-env"
+name = "safety-robot-gym"
 version = "0.1.0"
 description = "Gymnasium robotics environments with blocks that robots have to avoid"
 authors = ["Mikihisa Yuasa <myuasa2@illinois.edu>"]
