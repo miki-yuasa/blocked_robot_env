@@ -62,6 +62,8 @@ class BaseRobotEnv(GoalEnv):
         """
         if model_path.startswith("/"):
             self.fullpath = model_path
+        elif model_path.startswith("./"):
+            self.fullpath = os.path.join(os.getcwd(), model_path)
         else:
             self.fullpath = os.path.join(
                 os.path.dirname(__file__), "assets", model_path
