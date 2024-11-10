@@ -1,9 +1,6 @@
 import os
 from typing import Literal
 from gymnasium.utils.ezpickle import EzPickle
-from gymnasium_robotics.envs.fetch.fetch_env import DEFAULT_CAMERA_CONFIG
-from numpy import float64
-from numpy.typing import NDArray
 
 from safety_robot_gym.envs.fetch.fetch_env import MujocoBlockedFetchEnv
 
@@ -157,6 +154,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             "robot0:slide1": 0.48,
             "robot0:slide2": 0.0,
             "object0:joint": [1.25, 0.53, 0.4, 1.0, 0.0, 0.0, 0.0],
+            "object1:joint": [1.25, 0.75, 0.4, 1.0, 0.0, 0.0, 0.0],
         }
         MujocoBlockedFetchEnv.__init__(
             self,
