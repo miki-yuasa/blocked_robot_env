@@ -12,6 +12,7 @@ def test_env_init() -> None:
     os.environ["MUJOCO_GL"] = "osmesa"
     env = MujocoBlockedFetchPickAndPlaceEnv(
         render_mode="rgb_array",
+        penalty_type="zero",
     )
 
     obs, _ = env.reset()

@@ -131,7 +131,7 @@ class MujocoBlockedFetchPickAndPlaceEnv(MujocoBlockedFetchEnv, EzPickle):
     def __init__(
         self,
         reward_type: Literal["sparse", "dense"] = "dense",
-        penalty_type: Literal["sparse", "dense"] = "dense",
+        penalty_type: Literal["sparse", "dense", "zero"] = "dense",
         dense_penalty_coef: float = 0.1,
         sparse_penalty_value: float = -100.0,
         max_episode_steps: int = 100,

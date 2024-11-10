@@ -22,7 +22,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         target_range: float,
         distance_threshold: float,
         reward_type: Literal["sparse", "dense"],
-        penalty_type: Literal["sparse", "dense"],
+        penalty_type: Literal["sparse", "dense", "zero"],
         default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
         max_episode_steps: int = 100,
         dense_penalty_coef: float = 0.1,
@@ -81,65 +81,72 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         else:
             reward: NDArray[np.float64] = -d
 
-            # Penalize if the distance between the gripper and obstacle is closer than that between the desired goal and obstacle
-            # Make the info dict as a list if it is not already
-            if isinstance(info, dict):
-                info = [info]
+            if self.penalty_type == "zero":
+                return reward
             else:
-                pass
+                # Penalize if the distance between the gripper and obstacle is closer than that between the desired goal and obstacle
+                # Make the info dict as a list if it is not already
+                if isinstance(info, dict):
+                    info = [info]
+                else:
+                    pass
 
-            penalties: list[float] = []
+                penalties: list[float] = []
 
-            for info_dict in info:
-                obstacle_pos: NDArray[np.float64] = info_dict["obstacle_pos"]
-                obstacle_rel_pos: NDArray[np.float64] = info_dict["obstacle_rel_pos"]
-                object_pos: NDArray[np.float64] = info_dict["object_pos"]
-                desired_goal: NDArray[np.float64] = info_dict["goal"]
+                for info_dict in info:
+                    obstacle_pos: NDArray[np.float64] = info_dict["obstacle_pos"]
+                    obstacle_rel_pos: NDArray[np.float64] = info_dict[
+                        "obstacle_rel_pos"
+                    ]
+                    object_pos: NDArray[np.float64] = info_dict["object_pos"]
+                    desired_goal: NDArray[np.float64] = info_dict["goal"]
 
-                # Compute the distance between the obstacle and the gripper
-                obstacle_gripper_distance: NDArray[np.float64] = np.linalg.norm(
-                    obstacle_rel_pos
-                )
-
-                # Compute the distance between the obstacle and the desired goal
-                obstacle_goal_distance: NDArray[np.float64] = np.linalg.norm(
-                    obstacle_pos - desired_goal
-                )
-
-                init_obstacle_pos: NDArray[np.float64] = info_dict["init_obstacle_pos"]
-                init_object_pos: NDArray[np.float64] = info_dict["init_object_pos"]
-
-                obstacle_move_distance: NDArray[np.float64] = np.linalg.norm(
-                    obstacle_pos - init_obstacle_pos
-                )
-
-                penalty: float = 0.0
-                # Give dense penalty based on the distance between the gripper and the obstacle
-                if self.penalty_type == "dense":
-                    penalty += -self.dense_penalty_coef * (
-                        obstacle_goal_distance - obstacle_gripper_distance
+                    # Compute the distance between the obstacle and the gripper
+                    obstacle_gripper_distance: NDArray[np.float64] = np.linalg.norm(
+                        obstacle_rel_pos
                     )
-                else:
-                    pass
-                # Penalize if the obstacle moves
-                if obstacle_move_distance > self.distance_threshold:
-                    penalty += self.sparse_penalty_value
-                else:
-                    pass
-                # Penalize if the object falls off the table
-                if init_object_pos[2] - object_pos[2] > self.distance_threshold:
-                    penalty += self.sparse_penalty_value
-                else:
-                    pass
 
-                penalties.append(penalty)
+                    # Compute the distance between the obstacle and the desired goal
+                    obstacle_goal_distance: NDArray[np.float64] = np.linalg.norm(
+                        obstacle_pos - desired_goal
+                    )
 
-            if len(penalties) == 1:
-                reward += penalties[0]
-            elif len(penalties) > 1:
-                reward += np.array(penalties)
+                    init_obstacle_pos: NDArray[np.float64] = info_dict[
+                        "init_obstacle_pos"
+                    ]
+                    init_object_pos: NDArray[np.float64] = info_dict["init_object_pos"]
 
-            return reward
+                    obstacle_move_distance: NDArray[np.float64] = np.linalg.norm(
+                        obstacle_pos - init_obstacle_pos
+                    )
+
+                    penalty: float = 0.0
+                    # Give dense penalty based on the distance between the gripper and the obstacle
+                    if self.penalty_type == "dense":
+                        penalty += -self.dense_penalty_coef * (
+                            obstacle_goal_distance - obstacle_gripper_distance
+                        )
+                    else:
+                        pass
+                    # Penalize if the obstacle moves
+                    if obstacle_move_distance > self.distance_threshold:
+                        penalty += self.sparse_penalty_value
+                    else:
+                        pass
+                    # Penalize if the object falls off the table
+                    if init_object_pos[2] - object_pos[2] > self.distance_threshold:
+                        penalty += self.sparse_penalty_value
+                    else:
+                        pass
+
+                    penalties.append(penalty)
+
+                if len(penalties) == 1:
+                    reward += penalties[0]
+                elif len(penalties) > 1:
+                    reward += np.array(penalties)
+
+                return reward
 
     # RobotEnv methods
     # ----------------------------
