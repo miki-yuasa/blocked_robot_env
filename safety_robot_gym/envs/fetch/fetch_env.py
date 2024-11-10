@@ -55,7 +55,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         self.target_range: float = target_range
         self.distance_threshold: float = distance_threshold
         self.reward_type: Literal["sparse", "dense"] = reward_type
-        self.penalty_type: Literal["sparse", "dense"] = penalty_type
+        self.penalty_type: Literal["sparse", "dense", "zero"] = penalty_type
         self.max_episode_steps: int = max_episode_steps
         self.dense_penalty_coef: float = dense_penalty_coef
         self.sparse_penalty_value: float = sparse_penalty_value
@@ -83,7 +83,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
 
             if self.penalty_type == "zero":
                 return reward
-            else:
+            elif self.penalty_type == "dense":
                 # Penalize if the distance between the gripper and obstacle is closer than that between the desired goal and obstacle
                 # Make the info dict as a list if it is not already
                 if isinstance(info, dict):
@@ -123,9 +123,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                     penalty: float = 0.0
                     # Give dense penalty based on the distance between the gripper and the obstacle
                     if self.penalty_type == "dense":
-                        penalty += -self.dense_penalty_coef * (
-                            obstacle_goal_distance - obstacle_gripper_distance
-                        )
+                        penalty += self.dense_penalty_coef * obstacle_gripper_distance
                     else:
                         pass
                     # Penalize if the obstacle moves
@@ -134,10 +132,10 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                     else:
                         pass
                     # Penalize if the object falls off the table
-                    if init_object_pos[2] - object_pos[2] > self.distance_threshold:
-                        penalty += self.sparse_penalty_value
-                    else:
-                        pass
+                    # if init_object_pos[2] - object_pos[2] > self.distance_threshold:
+                    #     penalty += self.sparse_penalty_value
+                    # else:
+                    #     pass
 
                     penalties.append(penalty)
 
@@ -145,8 +143,14 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                     reward += penalties[0]
                 elif len(penalties) > 1:
                     reward += np.array(penalties)
+                else:
+                    pass
+
+                reward += 10 * (d < self.distance_threshold).astype(np.float32)
 
                 return reward
+            else:
+                raise ValueError("Invalid penalty type")
 
     # RobotEnv methods
     # ----------------------------
@@ -183,8 +187,10 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
 
         info = self._get_info()
 
-        terminated: bool = self.compute_terminated(
-            obs["achieved_goal"], self.goal, info
+        terminated: bool = (
+            False
+            if self.penalty_type == "zero"
+            else self.compute_terminated(obs["achieved_goal"], self.goal, info)
         )
         truncated: bool = self.compute_truncated(obs["achieved_goal"], self.goal, info)
 

@@ -18,20 +18,23 @@ device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 env_config: dict[str, Any] = {
     "render_mode": "rgb_array",
     "reward_type": "dense",
-    "penalty_type": "none",
-    "dense_penalty_coef": 0.1,
-    "sparse_penalty_value": -100,
+    "penalty_type": "dense",
+    "dense_penalty_coef": 0.01,
+    "sparse_penalty_value": -10,
     "max_episode_steps": 100,
 }
 
-policy_network_size_options: dict[str, list[int]] = {
-    "small": [64, 64],
-    "medium": [128, 128],
-    "large": [512, 512, 512],
-    "default": [256, 256],
+policy_network_size_options: dict[str, dict[str, Any]] = {
+    "default": {
+        "net_arch": [256, 256],
+    },
+    "large": {
+        "net_arch": [512, 512, 512],
+        "n_critics": 2,
+    },
 }
 file_title: str = (
-    f"fetch_pick_and_place_sac_{env_config['reward_type']}reward_{env_config['penalty_type']}_penalty_{policy_size}"
+    f"fetch_pick_and_place_sac_{env_config['reward_type']}_reward_{env_config['penalty_type']}_penalty_{policy_size}"
 )
 model_save_path: str = f"out/models/{file_title}.zip"
 animation_save_path: str = f"out/plots/{file_title}.gif"
@@ -56,10 +59,7 @@ sac_config: dict[str, Any] = {
     "learning_starts": 1000,
     "tau": 0.05,
     "tensorboard_log": tb_log_path,
-    "policy_kwargs": {
-        "n_critics": 2,
-        "net_arch": policy_network_size_options[policy_size],
-    },
+    "policy_kwargs": policy_network_size_options[policy_size],
 }
 her_config: dict[str, Any] = {
     "n_sampled_goal": 4,
