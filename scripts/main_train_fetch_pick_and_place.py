@@ -11,23 +11,41 @@ from safety_robot_gym.envs.fetch import MujocoBlockedFetchPickAndPlaceEnv
 gpu_id: int = 1
 total_timesteps: int = 1_000_000
 
+policy_size: str = "large"
+
 device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 
 env_config: dict[str, Any] = {
     "render_mode": "rgb_array",
     "reward_type": "dense",
-    "penalty_type": "sparse",
+    "penalty_type": "none",
     "dense_penalty_coef": 0.1,
     "sparse_penalty_value": -100,
     "max_episode_steps": 100,
 }
 
+policy_network_size_options: dict[str, list[int]] = {
+    "small": [64, 64],
+    "medium": [128, 128],
+    "large": [512, 512, 512],
+    "default": [256, 256],
+}
 file_title: str = (
-    f"fetch_pick_and_place_sac_reward_{env_config['reward_type']}_penalty_{env_config['penalty_type']}_large"
+    f"fetch_pick_and_place_sac_{env_config['reward_type']}reward_{env_config['penalty_type']}_penalty_{policy_size}"
 )
 model_save_path: str = f"out/models/{file_title}.zip"
 animation_save_path: str = f"out/plots/{file_title}.gif"
 tb_log_path: str = "out/logs/fetch_pick_and_place"
+
+from_check_point: bool = False
+
+if from_check_point:
+    ckpt_step: int = 1000_000
+    model_save_path: str = f"out/models/ckpts/{file_title}_{ckpt_step}_steps.zip"
+    if not os.path.exists(model_save_path):
+        raise FileNotFoundError(f"Checkpoint file not found: {model_save_path}")
+    else:
+        print(f"Loading model from checkpoint: {model_save_path}")
 
 sac_config: dict[str, Any] = {
     "policy": "MultiInputPolicy",
@@ -40,7 +58,7 @@ sac_config: dict[str, Any] = {
     "tensorboard_log": tb_log_path,
     "policy_kwargs": {
         "n_critics": 2,
-        "net_arch": [512, 512, 512],
+        "net_arch": policy_network_size_options[policy_size],
     },
 }
 her_config: dict[str, Any] = {
