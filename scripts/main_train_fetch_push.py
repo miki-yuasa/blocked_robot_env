@@ -8,10 +8,10 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 
 from safety_robot_gym.envs.fetch import MujocoBlockedFetchPushEnv
 
-gpu_id: int = 1
+gpu_id: int = 0
 total_timesteps: int = 1_000_000
 
-policy_size: str = "large"
+policy_size: str = "default"
 
 device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 

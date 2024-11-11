@@ -204,18 +204,21 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         desired_goal: NDArray[np.float64],
         info: dict[str, Any],
     ) -> bool:
-        # Terminate if the gripper is within a certain distance of the obstacle
-        info: dict[str, NDArray[np.float64]] = self._get_info()
-        obstacle_rel_pos: NDArray[np.float64] = info["obstacle_rel_pos"]
-        obstacle_moved: bool = (
-            np.linalg.norm(obstacle_rel_pos) < self.distance_threshold
-        )
-        # Terminate if the object falls off the table
-        object_pos: NDArray[np.float64] = info["object_pos"]
-        init_object_pos: NDArray[np.float64] = info["init_object_pos"]
-        object_fell: bool = init_object_pos[2] - object_pos[2] > self.distance_threshold
+        if self.penalty_type == "zero":
+            return False
+        else:
+            # Terminate if the gripper is within a certain distance of the obstacle
+            info: dict[str, NDArray[np.float64]] = self._get_info()
+            obstacle_rel_pos: NDArray[np.float64] = info["obstacle_rel_pos"]
+            obstacle_moved: bool = (
+                np.linalg.norm(obstacle_rel_pos) < self.distance_threshold
+            )
+            # Terminate if the object falls off the table
+            object_pos: NDArray[np.float64] = info["object_pos"]
+            init_object_pos: NDArray[np.float64] = info["init_object_pos"]
+            # object_fell: bool = init_object_pos[2] - object_pos[2] > self.distance_threshold
 
-        return obstacle_moved or object_fell
+            return obstacle_moved  # or object_fell
 
     def compute_truncated(
         self,
