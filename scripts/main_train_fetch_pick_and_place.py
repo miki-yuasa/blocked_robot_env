@@ -18,9 +18,9 @@ device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 env_config: dict[str, Any] = {
     "render_mode": "rgb_array",
     "reward_type": "dense",
-    "penalty_type": "dense",
+    "penalty_type": "zero",
     "dense_penalty_coef": 0.01,
-    "sparse_penalty_value": -10,
+    "sparse_penalty_value": -100,
     "max_episode_steps": 100,
 }
 
@@ -93,8 +93,10 @@ else:
         tb_log_name=file_title.removeprefix("fetch_pick_and_place_"),
     )
 
+    model.save(model_save_path)
+
 demo_env = MujocoBlockedFetchPickAndPlaceEnv(
-    render_mode="rgb_array",
+    **env_config,
 )
 obs, _ = demo_env.reset()
 frames = [demo_env.render()]

@@ -6,25 +6,23 @@ import imageio
 from stable_baselines3 import SAC, HerReplayBuffer
 from stable_baselines3.common.callbacks import CheckpointCallback
 
-from safety_robot_gym.envs.fetch import MujocoBlockedFetchPushEnv
+from gymnasium.wrappers import TimeLimit
+from gymnasium_robotics.envs.fetch.push import MujocoFetchPushEnv
 
 gpu_id: int = 0
 total_timesteps: int = 1_000_000
 
-policy_size: str = "large"
+policy_size: str = "default"
 
-restart_from_the_last_checkpoint: bool = True
+restart_from_the_last_checkpoint: bool = False
 
 device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 
 env_config: dict[str, Any] = {
     "render_mode": "rgb_array",
     "reward_type": "dense",
-    "penalty_type": "zero",
-    "dense_penalty_coef": 0.01,
-    "sparse_penalty_value": -100,
-    "max_episode_steps": 100,
 }
+max_episode_steps: int = 100
 
 policy_network_size_options: dict[str, dict[str, Any]] = {
     "default": {
@@ -36,7 +34,7 @@ policy_network_size_options: dict[str, dict[str, Any]] = {
     },
 }
 file_title: str = (
-    f"fetch_push_sac_{env_config['reward_type']}_reward_{env_config['penalty_type']}_penalty_{policy_size}"
+    f"normal_fetch_push_sac_{env_config['reward_type']}_reward_{policy_size}"
 )
 model_save_path: str = f"out/models/{file_title}.zip"
 animation_save_path: str = f"out/plots/{file_title}.gif"
@@ -83,7 +81,8 @@ her_config: dict[str, Any] = {
     "copy_info_dict": True,
 }
 
-env = MujocoBlockedFetchPushEnv(**env_config)
+env = MujocoFetchPushEnv(**env_config)
+env = TimeLimit(env, max_episode_steps=max_episode_steps)
 
 if os.path.exists(model_save_path):  # and not restart_from_the_last_checkpoint:
     model = SAC.load(model_save_path, env=env, device=device)
@@ -116,7 +115,8 @@ else:
 
     model.save(model_save_path)
 
-demo_env = MujocoBlockedFetchPushEnv(**env_config)
+demo_env = MujocoFetchPushEnv(**env_config)
+demo_env = TimeLimit(demo_env, max_episode_steps=max_episode_steps)
 obs, _ = demo_env.reset()
 frames = [demo_env.render()]
 

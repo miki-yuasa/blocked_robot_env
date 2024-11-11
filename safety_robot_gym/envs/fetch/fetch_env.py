@@ -80,6 +80,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             return -(d > self.distance_threshold).astype(np.float32)
         else:
             reward: NDArray[np.float64] = -d
+            reward += 10 * (d < self.distance_threshold).astype(np.float32)
 
             if self.penalty_type == "zero":
                 return reward
@@ -145,8 +146,6 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                     reward += np.array(penalties)
                 else:
                     pass
-
-                reward += 10 * (d < self.distance_threshold).astype(np.float32)
 
                 return reward
             else:
