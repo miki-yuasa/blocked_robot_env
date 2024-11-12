@@ -80,7 +80,9 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             return -(d > self.distance_threshold).astype(np.float32)
         else:
             reward: NDArray[np.float64] = -d
-            reward += 10 * (d < self.distance_threshold).astype(np.float32)
+            reward += self.sparse_penalty_value * (d < self.distance_threshold).astype(
+                np.float32
+            )
 
             if self.penalty_type == "zero":
                 return reward
@@ -129,7 +131,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                         pass
                     # Penalize if the obstacle moves
                     if obstacle_move_distance > self.distance_threshold:
-                        penalty += self.sparse_penalty_value
+                        penalty += -self.sparse_penalty_value
                     else:
                         pass
                     # Penalize if the object falls off the table
@@ -203,21 +205,24 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         desired_goal: NDArray[np.float64],
         info: dict[str, Any],
     ) -> bool:
-        if self.penalty_type == "zero":
-            return False
-        else:
-            # Terminate if the gripper is within a certain distance of the obstacle
-            info: dict[str, NDArray[np.float64]] = self._get_info()
-            obstacle_rel_pos: NDArray[np.float64] = info["obstacle_rel_pos"]
-            obstacle_moved: bool = (
-                np.linalg.norm(obstacle_rel_pos) < self.distance_threshold
-            )
-            # Terminate if the object falls off the table
-            object_pos: NDArray[np.float64] = info["object_pos"]
-            init_object_pos: NDArray[np.float64] = info["init_object_pos"]
-            # object_fell: bool = init_object_pos[2] - object_pos[2] > self.distance_threshold
+        # if self.penalty_type == "zero":
+        #     return False
+        # else:
+        #     # Terminate if the gripper is within a certain distance of the obstacle
+        #     info: dict[str, NDArray[np.float64]] = self._get_info()
+        #     obstacle_pos: NDArray[np.float64] = info["obstacle_pos"]
+        #     init_obstacle_pos: NDArray[np.float64] = info["init_obstacle_pos"]
+        #     obstacle_move_distance: NDArray[np.float64] = np.linalg.norm(
+        #         obstacle_pos - init_obstacle_pos
+        #     )
+        #     obstacle_moved: bool = obstacle_move_distance > self.distance_threshold
+        #     # Terminate if the object falls off the table
+        #     object_pos: NDArray[np.float64] = info["object_pos"]
+        #     init_object_pos: NDArray[np.float64] = info["init_object_pos"]
+        #     # object_fell: bool = init_object_pos[2] - object_pos[2] > self.distance_threshold
 
-            return obstacle_moved  # or object_fell
+        #     return obstacle_moved  # or object_fell
+        return False
 
     def compute_truncated(
         self,
