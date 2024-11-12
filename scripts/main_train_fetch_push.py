@@ -11,7 +11,7 @@ from safety_robot_gym.envs.fetch import MujocoBlockedFetchPushEnv
 gpu_id: int = 0
 total_timesteps: int = 1_000_000
 
-policy_size: str = "large"
+policy_size: str = "default"
 
 restart_from_the_last_checkpoint: bool = True
 
@@ -20,7 +20,7 @@ device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 env_config: dict[str, Any] = {
     "render_mode": "rgb_array",
     "reward_type": "dense",
-    "penalty_type": "zero",
+    "penalty_type": "dense",
     "dense_penalty_coef": 0.01,
     "sparse_penalty_value": -100,
     "max_episode_steps": 100,
@@ -42,22 +42,15 @@ model_save_path: str = f"out/models/{file_title}.zip"
 animation_save_path: str = f"out/plots/{file_title}.gif"
 tb_log_path: str = "out/logs/fetch_push"
 
-from_check_point: bool = False
 
-if from_check_point:
-    ckpt_step: int = 1000_000
-    model_save_path: str = f"out/models/ckpts/{file_title}_{ckpt_step}_steps.zip"
-    if not os.path.exists(model_save_path):
-        raise FileNotFoundError(f"Checkpoint file not found: {model_save_path}")
-    else:
-        print(f"Loading model from checkpoint: {model_save_path}")
-elif restart_from_the_last_checkpoint:
+if restart_from_the_last_checkpoint:
     ckpt_dir: str = "out/models/ckpts"
     ckpt_files = os.listdir(ckpt_dir)
     ckpt_files = [
         f for f in ckpt_files if f.startswith(file_title) and f.endswith(".zip")
     ]
-    ckpt_files = sorted(ckpt_files)
+    timesteps: list[float] = [int(f.split("_")[-2]) for f in ckpt_files]
+    ckpt_files = [f for _, f in sorted(zip(timesteps, ckpt_files))]
     if len(ckpt_files) > 0:
         last_ckpt = ckpt_files[-1]
         ckpt_step = int(last_ckpt.split("_")[-2])
@@ -121,6 +114,7 @@ obs, _ = demo_env.reset()
 frames = [demo_env.render()]
 
 ep_reward: float = 0
+rewards: list[float] = []
 while True:
     action = model.predict(obs, deterministic=True)[0]
     obs, reward, terminated, truncated, info = demo_env.step(action)
@@ -128,11 +122,13 @@ while True:
     print(obs)
     print(f"Reward:{reward}")
     ep_reward += reward
+    rewards.append(reward)
     frames.append(demo_env.render())
     if terminated or truncated:
         break
 
 print(f"Episode reward: {ep_reward}")
+print(f"Rewards: {rewards}")
 
 demo_env.close()
 
