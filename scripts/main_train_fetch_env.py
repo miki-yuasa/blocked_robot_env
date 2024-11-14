@@ -12,16 +12,17 @@ from safety_robot_gym.envs.fetch import (
     MujocoBlockedFetchPickAndPlaceEnv,
 )
 
-gpu_id: int = 1
+gpu_id: int = 0
 total_timesteps: int = 3_000_000
 
 env_name: Literal["blocked_fetch_push", "blocked_fetch_pick_and_place"] = (
-    "blocked_fetch_pick_and_place"
+    "blocked_fetch_push"
 )
 policy_size: str = "large"
-algo: Literal["sac", "tqc"] = "sac"
+algo: Literal["sac", "tqc"] = "tqc"
 
 restart_from_the_last_checkpoint: bool = False
+replicate: str = "_1"
 
 device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 
@@ -45,6 +46,7 @@ policy_network_size_options: dict[str, dict[str, Any]] = {
 }
 file_title: str = (
     f"{env_name}_{algo}_{env_config['reward_type']}_reward_{env_config['penalty_type']}_penalty_{policy_size}"
+    + replicate
 )
 model_save_path: str = f"out/models/{file_title}.zip"
 animation_save_path: str = f"out/plots/{file_title}.gif"
@@ -102,12 +104,27 @@ match env_name:
     case _:
         raise ValueError(f"Unknown environment: {env_name}")
 
-if os.path.exists(model_save_path):  # and not restart_from_the_last_checkpoint:
-    model = SAC.load(model_save_path, env=env, device=device)
+if os.path.exists(model_save_path) and not restart_from_the_last_checkpoint:
+    print(f"Loading model from the saved file: {model_save_path}")
+    match algo:
+        case "sac":
+            model = SAC.load(model_save_path, env=env, device=device)
+        case "tqc":
+            model = TQC.load(model_save_path, env=env, device=device)
+        case _:
+            raise ValueError(f"Unknown algorithm: {algo}")
 else:
     if restart_from_the_last_checkpoint:
+        print(f"Continuing training from the last checkpoint: {model_save_path}")
         total_timesteps = total_timesteps - ckpt_step
-        model = SAC.load(model_save_path, env=env, device=device)
+        match algo:
+            case "sac":
+                model = SAC.load(model_save_path, env=env, device=device)
+            case "tqc":
+                model = TQC.load(model_save_path, env=env, device=device)
+                model.learning_starts = ckpt_step + 1000
+            case _:
+                raise ValueError(f"Unknown algorithm: {algo}")
     else:
         match algo:
             case "sac":
