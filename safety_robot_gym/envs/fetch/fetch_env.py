@@ -145,7 +145,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 if len(penalties) == 1:
                     reward += penalties[0]
                 elif len(penalties) > 1:
-                    reward += np.array(penalties)
+                    reward += np.array(penalties).reshape(reward.shape)
                 else:
                     pass
 
