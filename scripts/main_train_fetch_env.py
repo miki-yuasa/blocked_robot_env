@@ -22,7 +22,8 @@ policy_size: str = "large"
 algo: Literal["sac", "tqc"] = "tqc"
 
 restart_from_the_last_checkpoint: bool = False
-replicate: str = "_1"
+replay_only: bool = True
+replicate: str = ""
 
 device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
 
@@ -52,8 +53,12 @@ model_save_path: str = f"out/models/{file_title}.zip"
 animation_save_path: str = f"out/plots/{file_title}.gif"
 tb_log_path: str = f"out/logs/blocked_fetch"
 
+if replay_only and restart_from_the_last_checkpoint:
+    raise ValueError("Both replay_only and restart_from_the_last_checkpoint are True")
+else:
+    pass
 
-if restart_from_the_last_checkpoint:
+if replay_only or restart_from_the_last_checkpoint:
     ckpt_dir: str = "out/models/ckpts"
     ckpt_files = os.listdir(ckpt_dir)
     ckpt_files = [
