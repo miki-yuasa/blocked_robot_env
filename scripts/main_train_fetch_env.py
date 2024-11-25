@@ -7,7 +7,7 @@ from stable_baselines3 import SAC, HerReplayBuffer
 from stable_baselines3.common.callbacks import CheckpointCallback
 from sb3_contrib import TQC
 
-from safety_robot_gym.envs.fetch import (
+from safety_robot_env.envs.fetch import (
     MujocoBlockedFetchPushEnv,
     MujocoBlockedFetchPickAndPlaceEnv,
 )

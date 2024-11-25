@@ -2,7 +2,7 @@ import os
 
 import imageio
 
-from safety_robot_gym.envs.fetch.pick_and_place import (
+from safety_robot_env.envs.fetch.pick_and_place import (
     MujocoBlockedFetchPickAndPlaceEnv,
 )
 

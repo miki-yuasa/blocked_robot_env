@@ -2,7 +2,7 @@ import os
 
 import imageio
 
-from safety_robot_gym.envs.fetch.push import (
+from safety_robot_env.envs.fetch.push import (
     MujocoBlockedFetchPushEnv,
 )
 
