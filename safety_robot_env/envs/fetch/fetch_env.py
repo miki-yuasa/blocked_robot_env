@@ -247,7 +247,6 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         return (d < self.distance_threshold).astype(np.float32)
 
     def _step_callback(self):
-        self.step_count += 1
 
         if self.block_gripper:
             self._utils.set_joint_qpos(

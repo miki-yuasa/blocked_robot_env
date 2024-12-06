@@ -1,5 +1,6 @@
 import os
 
+import gymnasium as gym
 import imageio
 
 from safety_robot_env.envs.fetch.push import (
@@ -10,16 +11,13 @@ from safety_robot_env.envs.fetch.push import (
 def test_env_init() -> None:
     animation_save_path: str = "tests/out/plots/test_blocked_push_env.gif"
     os.environ["MUJOCO_GL"] = "osmesa"
-    env = MujocoBlockedFetchPushEnv(
-        render_mode="rgb_array",
-        penalty_type="zero",
-    )
+    env = gym.make("safety_robot_env/MujocoBlockedFetchPush-v0")
 
     obs, _ = env.reset()
     frames = [env.render()]
 
     step_count: int = 0
-    for _ in range(2 * env.max_episode_steps):
+    for _ in range(2 * env._max_episode_steps):
         step_count += 1
         obs, reward, terminated, truncated, info = env.step(env.action_space.sample())
         frames.append(env.render())
@@ -29,7 +27,7 @@ def test_env_init() -> None:
         else:
             pass
 
-    assert step_count <= env.max_episode_steps
+    assert step_count <= env._max_episode_steps
 
     os.makedirs(os.path.dirname(animation_save_path), exist_ok=True)
     imageio.mimsave(animation_save_path, frames, fps=30)
