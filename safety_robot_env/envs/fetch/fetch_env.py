@@ -22,11 +22,8 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         target_range: float,
         distance_threshold: float,
         reward_type: Literal["sparse", "dense"],
-        penalty_type: Literal["sparse", "dense", "zero"],
         default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
-        max_episode_steps: int = 100,
-        dense_penalty_coef: float = 0.1,
-        sparse_penalty_value: float = -100.0,
+        goal_reward: float = 10.0,
         **kwargs,
     ):
         """Initializes a new Fetch environment.
@@ -55,10 +52,15 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         self.target_range: float = target_range
         self.distance_threshold: float = distance_threshold
         self.reward_type: Literal["sparse", "dense"] = reward_type
-        self.penalty_type: Literal["sparse", "dense", "zero"] = penalty_type
-        self.max_episode_steps: int = max_episode_steps
-        self.dense_penalty_coef: float = dense_penalty_coef
-        self.sparse_penalty_value: float = sparse_penalty_value
+        self.goal_reward: float = goal_reward
+
+        self.init_obstacle_pos: NDArray[np.float64] = np.zeros(3)
+        self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
+
+        if self.reward_type not in ["sparse", "dense"]:
+            raise ValueError("Invalid reward type. Must be either 'sparse' or 'dense'.")
+        else:
+            pass
 
         super().__init__(
             n_actions=4, default_camera_config=default_camera_config, **kwargs
@@ -80,70 +82,10 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             return -(d > self.distance_threshold).astype(np.float32)
         else:
             reward: NDArray[np.float64] = -d
-            reward += self.sparse_penalty_value * (d < self.distance_threshold).astype(
+            reward += self.goal_reward * (d < self.distance_threshold).astype(
                 np.float32
             )
-
-            if self.penalty_type == "zero":
-                return reward
-            elif self.penalty_type == "dense":
-                # Penalize if the distance between the gripper and obstacle is closer than that between the desired goal and obstacle
-                # Make the info dict as a list if it is not already
-                if isinstance(info, dict):
-                    info = [info]
-                else:
-                    pass
-
-                penalties: list[float] = []
-
-                for info_dict in info:
-                    obstacle_pos: NDArray[np.float64] = info_dict["obstacle_pos"]
-                    obstacle_rel_pos: NDArray[np.float64] = info_dict[
-                        "obstacle_rel_pos"
-                    ]
-
-                    # Compute the distance between the obstacle and the gripper
-                    obstacle_gripper_distance: NDArray[np.float64] = np.linalg.norm(
-                        obstacle_rel_pos
-                    )
-
-                    init_obstacle_pos: NDArray[np.float64] = info_dict[
-                        "init_obstacle_pos"
-                    ]
-
-                    obstacle_move_distance: NDArray[np.float64] = np.linalg.norm(
-                        obstacle_pos - init_obstacle_pos
-                    )
-
-                    penalty: float = 0.0
-                    # Give dense penalty based on the distance between the gripper and the obstacle
-                    if self.penalty_type == "dense":
-                        penalty += self.dense_penalty_coef * obstacle_gripper_distance
-                    else:
-                        pass
-                    # Penalize if the obstacle moves
-                    if obstacle_move_distance > self.distance_threshold:
-                        penalty += -self.sparse_penalty_value
-                    else:
-                        pass
-                    # Penalize if the object falls off the table
-                    # if init_object_pos[2] - object_pos[2] > self.distance_threshold:
-                    #     penalty += self.sparse_penalty_value
-                    # else:
-                    #     pass
-
-                    penalties.append(penalty)
-
-                if len(penalties) == 1:
-                    reward += penalties[0]
-                elif len(penalties) > 1:
-                    reward += np.array(penalties).reshape(reward.shape)
-                else:
-                    pass
-
-                return reward
-            else:
-                raise ValueError("Invalid penalty type")
+            return reward
 
     # RobotEnv methods
     # ----------------------------
@@ -157,25 +99,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         obs, _ = super().reset(seed=seed, options=options)
         info = self._get_info()
 
-        self.step_count: int = 0
-
         return obs, info
-
-    def compute_terminated(
-        self,
-        achieved_goal: NDArray[np.float64],
-        desired_goal: NDArray[np.float64],
-        info: dict[str, Any],
-    ) -> bool:
-        return False
-
-    def compute_truncated(
-        self,
-        achieved_goal: NDArray[np.float64],
-        desired_goal: NDArray[np.float64],
-        info: dict[str, Any],
-    ) -> bool:
-        return self.step_count >= self.max_episode_steps
 
     def _set_action(self, action):
         assert action.shape == (4,)
@@ -427,7 +351,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         site_id = self._mujoco.mj_name2id(
             self.model, self._mujoco.mjtObj.mjOBJ_SITE, "target0"
         )
-        self.model.site_pos[site_id] = self.goal - sites_offset[0]
+        self.model.site_pos[site_id] = self.goal[:3] - sites_offset[0]
         self._mujoco.mj_forward(self.model, self.data)
 
     def _reset_sim(self) -> bool:
@@ -476,10 +400,10 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             self.init_object_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
                 self.model, self.data, "object0:joint"
             )[:3]
-            self.init_obstacle_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
+            self.init_obstacle_pos = self._utils.get_joint_qpos(
                 self.model, self.data, "object1:joint"
             )[:3]
-            self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
+            self.cumulative_obstacle_displacement = np.zeros(3)
             self.prev_obstacle_pos: NDArray[np.float64] = self.init_obstacle_pos
 
         self._mujoco.mj_forward(self.model, self.data)

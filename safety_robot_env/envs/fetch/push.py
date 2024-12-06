@@ -164,10 +164,8 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
     def __init__(
         self,
         reward_type: Literal["sparse", "dense"] = "dense",
-        penalty_type: Literal["sparse", "dense", "zero"] = "dense",
-        dense_penalty_coef: float = 0.1,
-        sparse_penalty_value: float = -100.0,
-        max_episode_steps: int = 100,
+        goal_reward: float = 10.0,
+        max_episode_steps: int = 500,
         model_path: str = MODEL_XML_PATH,
         n_substeps: int = 20,
         target_offset: float = 0.0,
@@ -197,10 +195,8 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             distance_threshold=distance_threshold,
             initial_qpos=initial_qpos,
             reward_type=reward_type,
-            penalty_type=penalty_type,
             max_episode_steps=max_episode_steps,
-            dense_penalty_coef=dense_penalty_coef,
-            sparse_penalty_value=sparse_penalty_value,
+            goal_reward=goal_reward,
             **kwargs,
         )
         EzPickle.__init__(self, reward_type=reward_type, **kwargs)
