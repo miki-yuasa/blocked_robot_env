@@ -101,23 +101,15 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                     obstacle_rel_pos: NDArray[np.float64] = info_dict[
                         "obstacle_rel_pos"
                     ]
-                    object_pos: NDArray[np.float64] = info_dict["object_pos"]
-                    desired_goal: NDArray[np.float64] = info_dict["goal"]
 
                     # Compute the distance between the obstacle and the gripper
                     obstacle_gripper_distance: NDArray[np.float64] = np.linalg.norm(
                         obstacle_rel_pos
                     )
 
-                    # Compute the distance between the obstacle and the desired goal
-                    obstacle_goal_distance: NDArray[np.float64] = np.linalg.norm(
-                        obstacle_pos - desired_goal
-                    )
-
                     init_obstacle_pos: NDArray[np.float64] = info_dict[
                         "init_obstacle_pos"
                     ]
-                    init_object_pos: NDArray[np.float64] = info_dict["init_object_pos"]
 
                     obstacle_move_distance: NDArray[np.float64] = np.linalg.norm(
                         obstacle_pos - init_obstacle_pos
@@ -169,59 +161,12 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
 
         return obs, info
 
-    def step(
-        self, action
-    ) -> tuple[dict[str, NDArray[np.float64]], float, bool, bool, dict[str, Any]]:
-        if np.array(action).shape != self.action_space.shape:
-            raise ValueError("Action dimension mismatch")
-
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-        self._set_action(action)
-
-        self._mujoco_step(action)
-
-        self._step_callback()
-
-        if self.render_mode == "human":
-            self.render()
-        obs: dict[str, NDArray[np.float64]] = self._get_obs()
-
-        info = self._get_info()
-
-        terminated: bool = (
-            False
-            if self.penalty_type == "zero"
-            else self.compute_terminated(obs["achieved_goal"], self.goal, info)
-        )
-        truncated: bool = self.compute_truncated(obs["achieved_goal"], self.goal, info)
-
-        reward: float = self.compute_reward(obs["achieved_goal"], self.goal, info)
-
-        return obs, reward, terminated, truncated, info
-
     def compute_terminated(
         self,
         achieved_goal: NDArray[np.float64],
         desired_goal: NDArray[np.float64],
         info: dict[str, Any],
     ) -> bool:
-        # if self.penalty_type == "zero":
-        #     return False
-        # else:
-        #     # Terminate if the gripper is within a certain distance of the obstacle
-        #     info: dict[str, NDArray[np.float64]] = self._get_info()
-        #     obstacle_pos: NDArray[np.float64] = info["obstacle_pos"]
-        #     init_obstacle_pos: NDArray[np.float64] = info["init_obstacle_pos"]
-        #     obstacle_move_distance: NDArray[np.float64] = np.linalg.norm(
-        #         obstacle_pos - init_obstacle_pos
-        #     )
-        #     obstacle_moved: bool = obstacle_move_distance > self.distance_threshold
-        #     # Terminate if the object falls off the table
-        #     object_pos: NDArray[np.float64] = info["object_pos"]
-        #     init_object_pos: NDArray[np.float64] = info["init_object_pos"]
-        #     # object_fell: bool = init_object_pos[2] - object_pos[2] > self.distance_threshold
-
-        #     return obstacle_moved  # or object_fell
         return False
 
     def compute_truncated(
@@ -283,6 +228,8 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 obstacle_pos.ravel(),
                 object_rel_pos.ravel(),
                 obstacle_rel_pos.ravel(),
+                self.init_obstacle_pos.ravel(),
+                self.cumulative_obstacle_displacement.ravel(),
                 gripper_state,
                 object_rot.ravel(),
                 obstacle_rot.ravel(),
@@ -295,7 +242,11 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             ]
         )
 
-        achieved_goal = np.squeeze(object_pos.copy())
+        achieved_goal = np.concatenate(
+            np.squeeze(
+                (object_pos.copy(), self.cumulative_obstacle_displacement.copy())
+            )
+        )
 
         return {
             "observation": obs.copy(),
@@ -363,6 +314,8 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
                 -self.target_range, self.target_range, size=3
             )
+        # Extend the goal to include cumulative displacement of the obstacle to the goal in the x, y, and z directions
+        goal = np.concatenate([goal, np.zeros(3)])
         return goal.copy()
 
     def _is_success(self, achieved_goal, desired_goal):
@@ -380,6 +333,16 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 self.model, self.data, "robot0:r_gripper_finger_joint", 0.0
             )
             self._mujoco.mj_forward(self.model, self.data)
+
+        # Record the displacement of the obstacle
+        curr_obstacle_pos: NDArray[np.float64] = self._utils.get_site_xpos(
+            self.model, self.data, "object1"
+        )
+        step_obstacle_displacement: NDArray[np.float64] = (
+            curr_obstacle_pos - self.prev_obstacle_pos
+        )
+        self.cumulative_obstacle_displacement += step_obstacle_displacement
+        self.prev_obstacle_pos = curr_obstacle_pos
 
     def generate_mujoco_observations(self) -> tuple[NDArray[np.float64], ...]:
         # positions
@@ -516,6 +479,8 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             self.init_obstacle_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
                 self.model, self.data, "object1:joint"
             )[:3]
+            self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
+            self.prev_obstacle_pos: NDArray[np.float64] = self.init_obstacle_pos
 
         self._mujoco.mj_forward(self.model, self.data)
         return True
