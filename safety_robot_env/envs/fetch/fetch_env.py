@@ -22,8 +22,9 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         target_range: float,
         distance_threshold: float,
         reward_type: Literal["sparse", "dense"],
-        default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
         goal_reward: float = 10.0,
+        obstacle_penalty: bool = True,
+        default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
         **kwargs,
     ):
         """Initializes a new Fetch environment.
@@ -53,6 +54,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         self.distance_threshold: float = distance_threshold
         self.reward_type: Literal["sparse", "dense"] = reward_type
         self.goal_reward: float = goal_reward
+        self.obstacle_penalty: bool = obstacle_penalty
 
         self.init_obstacle_pos: NDArray[np.float64] = np.zeros(3)
         self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
@@ -167,9 +169,14 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         )
 
         achieved_goal = np.concatenate(
-            np.squeeze(
-                (object_pos.copy(), self.cumulative_obstacle_displacement.copy())
-            )
+            [
+                object_pos.copy(),
+                (
+                    self.cumulative_obstacle_displacement.copy()
+                    if self.obstacle_penalty
+                    else np.zeros(3)
+                ),
+            ]
         )
 
         return {
