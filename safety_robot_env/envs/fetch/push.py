@@ -196,7 +196,8 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             initial_qpos=initial_qpos,
             reward_type=reward_type,
             goal_reward=goal_reward,
-            obstacle_penalty=obstacle_penalty**kwargs,
+            obstacle_penalty=obstacle_penalty,
+            **kwargs,
         )
         EzPickle.__init__(
             self,
