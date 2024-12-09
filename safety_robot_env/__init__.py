@@ -11,6 +11,7 @@ register(
     max_episode_steps=500,
     kwargs={
         "reward_type": "dense",
+        "obstacle_penalty": True,
         "goal_reward": 10,
         "model_path": os.path.join("fetch", "blocked_push.xml"),
         "n_substeps": 20,
