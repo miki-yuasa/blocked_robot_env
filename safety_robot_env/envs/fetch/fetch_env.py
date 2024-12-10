@@ -79,10 +79,12 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         info: dict[str, Any] | list[dict[str, Any]],
     ):
         # Compute distance between goal and the achieved goal.
-        pos_achieved_goal: NDArray[np.float64] = achieved_goal[:3]
-        pos_desired_goal: NDArray[np.float64] = goal[:3]
-        disp_achieved_goal: NDArray[np.float64] = achieved_goal[3:]
-        disp_desired_goal: NDArray[np.float64] = goal[3:]
+        achieved_goal = achieved_goal.reshape(-1, 6)
+        goal = goal.reshape(-1, 6)
+        pos_achieved_goal: NDArray[np.float64] = achieved_goal[:, :3]
+        pos_desired_goal: NDArray[np.float64] = goal[:, :3]
+        disp_achieved_goal: NDArray[np.float64] = achieved_goal[:, 3:]
+        disp_desired_goal: NDArray[np.float64] = goal[:, 3:]
         d: NDArray[np.float64] = goal_distance(pos_achieved_goal, pos_desired_goal)
 
         if self.reward_type == "sparse":
