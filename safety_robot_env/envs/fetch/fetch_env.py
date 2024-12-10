@@ -368,8 +368,8 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         return self.data.xpos[body_id]
 
     def compute_terminated(self, achieved_goal, desired_goal, info):
-        obstacle_moved = np.linalg.norm(self.step_obstacle_displacement) > 0.01
-        return obstacle_moved
+        obstacle_moved: bool = np.linalg.norm(self.step_obstacle_displacement) > 0.01
+        return obstacle_moved or self._is_success(achieved_goal, desired_goal)
 
     def _render_callback(self):
         # Visualize target.
