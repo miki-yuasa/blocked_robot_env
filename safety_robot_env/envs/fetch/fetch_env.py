@@ -98,7 +98,9 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 displacements: NDArray[np.float64] = goal_distance(
                     disp_achieved_goal, disp_desired_goal
                 )
-                reward -= self.goal_reward * (displacements > 0.01).astype(np.float64)
+                reward -= self.goal_reward * (
+                    displacements > self.distance_threshold
+                ).astype(np.float64)
 
             return reward
 
@@ -246,7 +248,9 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         return info
 
     def compute_terminated(self, achieved_goal, desired_goal, info):
-        obstacle_moved: bool = np.linalg.norm(self.step_obstacle_displacement) > 0.01
+        obstacle_moved: bool = (
+            np.linalg.norm(self.step_obstacle_displacement) > self.distance_threshold
+        )
         is_success: bool = (
             goal_distance(achieved_goal, desired_goal) < self.distance_threshold
         )
