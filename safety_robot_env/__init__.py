@@ -2,13 +2,13 @@ import os
 from gymnasium.envs.registration import register
 
 register(
-    id="safety_robot_env/MujocoBlockedFetchPickAndPlace-v0",
+    id="BlockedFetchPickAndPlace-v0",
     entry_point="safety_robot_env.envs.fetch.pick_and_place:MujocoBlockedFetchPickAndPlaceEnv",
 )
 register(
-    id="safety_robot_env/MujocoBlockedFetchPush-v0",
+    id="BlockedFetchPush-v0",
     entry_point="safety_robot_env.envs.fetch.push:MujocoBlockedFetchPushEnv",
-    max_episode_steps=500,
+    max_episode_steps=50,
     kwargs={
         "reward_type": "dense",
         "obstacle_penalty": True,
