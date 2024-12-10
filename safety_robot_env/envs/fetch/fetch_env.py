@@ -58,6 +58,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
 
         self.init_obstacle_pos: NDArray[np.float64] = np.zeros(3)
         self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
+        self.step_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
 
         if self.reward_type not in ["sparse", "dense"]:
             raise ValueError("Invalid reward type. Must be either 'sparse' or 'dense'.")
@@ -172,7 +173,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             [
                 object_pos.copy(),
                 (
-                    self.cumulative_obstacle_displacement.copy()
+                    self.step_obstacle_displacement.copy()
                     if self.obstacle_penalty
                     else np.zeros(3)
                 ),
@@ -272,6 +273,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             curr_obstacle_pos - self.prev_obstacle_pos
         )
         self.cumulative_obstacle_displacement += step_obstacle_displacement
+        self.step_obstacle_displacement = step_obstacle_displacement
         self.prev_obstacle_pos = curr_obstacle_pos
 
     def generate_mujoco_observations(self) -> tuple[NDArray[np.float64], ...]:
@@ -410,6 +412,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 self.model, self.data, "object1:joint"
             )[:3]
             self.cumulative_obstacle_displacement = np.zeros(3)
+            self.step_obstacle_displacement = np.zeros(3)
             self.prev_obstacle_pos: NDArray[np.float64] = self.init_obstacle_pos
 
         self._mujoco.mj_forward(self.model, self.data)
