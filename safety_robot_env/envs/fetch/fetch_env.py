@@ -79,7 +79,11 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
         info: dict[str, Any] | list[dict[str, Any]],
     ):
         # Compute distance between goal and the achieved goal.
-        d: NDArray[np.float64] = goal_distance(achieved_goal, goal)
+        pos_achieved_goal: NDArray[np.float64] = achieved_goal[:3]
+        pos_desired_goal: NDArray[np.float64] = goal[:3]
+        disp_achieved_goal: NDArray[np.float64] = achieved_goal[3:]
+        disp_desired_goal: NDArray[np.float64] = goal[3:]
+        d: NDArray[np.float64] = goal_distance(pos_achieved_goal, pos_desired_goal)
 
         if self.reward_type == "sparse":
             return -(d > self.distance_threshold).astype(np.float32)
@@ -88,6 +92,14 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
             reward += self.goal_reward * (d < self.distance_threshold).astype(
                 np.float64
             )
+            if self.obstacle_penalty:
+                displacements: NDArray[np.float64] = goal_distance(
+                    disp_achieved_goal, disp_desired_goal
+                )
+                reward -= (
+                    self.goal_reward * 5 * (displacements > 0.01).astype(np.float64)
+                )
+
             return reward
 
     # RobotEnv methods
@@ -156,7 +168,7 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
                 object_rel_pos.ravel(),
                 obstacle_rel_pos.ravel(),
                 # self.init_obstacle_pos.ravel(),
-                # self.cumulative_obstacle_displacement.ravel(),
+                self.cumulative_obstacle_displacement.ravel(),
                 gripper_state,
                 object_rot.ravel(),
                 obstacle_rot.ravel(),
@@ -352,6 +364,10 @@ class MujocoBlockedFetchEnv(MujocoRobotEnv):
     def _get_gripper_xpos(self):
         body_id = self._model_names.body_name2id["robot0:gripper_link"]
         return self.data.xpos[body_id]
+
+    def compute_terminated(self, achieved_goal, desired_goal, info):
+        obstacle_moved = np.linalg.norm(self.step_obstacle_displacement) > 0.01
+        return obstacle_moved
 
     def _render_callback(self):
         # Visualize target.
