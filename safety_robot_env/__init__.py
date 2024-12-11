@@ -12,13 +12,14 @@ register(
     kwargs={
         "reward_type": "dense",
         "obstacle_penalty": True,
-        "goal_reward": 10,
+        "goal_reward": 0.0,
         "model_path": os.path.join("fetch", "blocked_push.xml"),
         "n_substeps": 20,
-        "target_offset": 0.0,
         "obj_range": 0.15,
         "target_range": 0.15,
         "distance_threshold": 0.05,
+        "terminate_upon_success": True,
+        "terminate_upon_collision": False,
         "render_mode": "rgb_array",
     },
 )

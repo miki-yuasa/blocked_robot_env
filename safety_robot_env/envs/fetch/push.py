@@ -319,15 +319,44 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
         self,
         reward_type: Literal["sparse", "dense"] = "dense",
         obstacle_penalty: bool = True,
-        goal_reward: float = 10.0,
+        goal_reward: float = 0.0,
         model_path: str = MODEL_XML_PATH,
         n_substeps: int = 20,
-        target_offset: float = 0.0,
         obj_range: float = 0.15,
         target_range: float = 0.15,
         distance_threshold: float = 0.05,
+        terminate_upon_success: bool = True,
+        terminate_upon_collision: bool = False,
         **kwargs,
-    ):
+    ) -> None:
+        """
+        Initialize a new Blocked FetchPush environment.
+
+        Parameters
+        ----------
+        reward_type : typing.Literal["sparse", "dense"] = "dense"
+            The reward type to use. Can be either "sparse" or "dense".
+        obstacle_penalty : bool = True
+            If True, penalize the agent for moving the obstacle.
+        goal_reward : float = 0.0
+            The reward to give the agent when it reaches the goal.
+        model_path : str = fetch/blocked_push.xml
+            The path to the XML model file.
+        n_substeps : int = 20
+            The number of substeps to use in the environment.
+        obj_range : float = 0.15
+            The range of the object position when resetting the environment.
+        target_range : float = 0.15
+            The range of the target position when resetting the environment.
+        distance_threshold : float = 0.05
+            The distance threshold to consider the goal as achieved.
+        terminate_upon_success : bool = True
+            If True, terminate the episode when the goal is achieved.
+        terminate_upon_collision : bool = False
+            If True, terminate the episode when the robot collides with the obstacle.
+        kwargs : dict[str, typing.Any]
+            Additional keyword arguments to pass to the superclass.
+        """
         initial_qpos = {
             "robot0:slide0": 0.405,
             "robot0:slide1": 0.48,
@@ -343,7 +372,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             n_substeps=n_substeps,
             gripper_extra_height=0.0,
             target_in_the_air=False,
-            target_offset=target_offset,
+            target_offset=0.0,
             obj_range=obj_range,
             target_range=target_range,
             distance_threshold=distance_threshold,
@@ -351,18 +380,27 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             reward_type=reward_type,
             goal_reward=goal_reward,
             obstacle_penalty=obstacle_penalty,
+            terminate_upon_success=terminate_upon_success,
+            terminate_upon_collision=terminate_upon_collision,
             **kwargs,
         )
         EzPickle.__init__(
             self,
-            reward_type=reward_type,
-            obstacle_penalty=obstacle_penalty,
-            goal_reward=goal_reward,
             model_path=model_path,
+            has_object=True,
+            block_gripper=True,
             n_substeps=n_substeps,
-            target_offset=target_offset,
+            gripper_extra_height=0.0,
+            target_in_the_air=False,
+            target_offset=0.0,
             obj_range=obj_range,
             target_range=target_range,
             distance_threshold=distance_threshold,
+            initial_qpos=initial_qpos,
+            reward_type=reward_type,
+            goal_reward=goal_reward,
+            obstacle_penalty=obstacle_penalty,
+            terminate_upon_success=terminate_upon_success,
+            terminate_upon_collision=terminate_upon_collision,
             **kwargs,
         )

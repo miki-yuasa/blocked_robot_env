@@ -302,6 +302,8 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         self,
         goal_reward: float = 10.0,
         obstacle_penalty: bool = True,
+        terminate_upon_success: bool = True,
+        terminate_upon_collision: bool = False,
         default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
         **kwargs,
     ):
@@ -324,6 +326,8 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
 
         self.goal_reward: float = goal_reward
         self.obstacle_penalty: bool = obstacle_penalty
+        self.terminate_upon_success: bool = terminate_upon_success
+        self.terminate_upon_collision: bool = terminate_upon_collision
 
         self.init_obstacle_pos: NDArray[np.float64] = np.zeros(3)
         self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
@@ -491,14 +495,42 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
 
         return info
 
-    def compute_terminated(self, achieved_goal, desired_goal, info):
-        # obstacle_moved: bool = (
-        #     np.linalg.norm(self.step_obstacle_displacement) > self.distance_threshold
-        # )
+    def compute_terminated(
+        self,
+        achieved_goal: NDArray[np.float64],
+        desired_goal: NDArray[np.float64],
+        info: dict[str, Any] = {},
+    ) -> bool:
+        """
+        Termination criterion for the environment.
+        If the distance between the achieved goal and the desired goal is less than the distance threshold, the environment is terminated.
+        `self.terminate_upon_success` determines whether the environment is terminated upon success.
+        If the obstacle has moved more than the distance threshold, the environment is terminated.
+        `self.terminate_upon_collision` determines whether the environment is terminated upon collision.
+
+        Parameters
+        ----------
+        achieved_goal: np.typing.NDArray[np.float64]
+            The achieved goal position.
+        desired_goal: np.typing.NDArray[np.float64]
+            The desired goal position.
+        info: dict[str, Any]
+            Additional information about the environment.
+            Not used in this method.
+
+        Returns
+        -------
+        terminated: bool
+            Whether the environment is terminated.
+        """
         is_success: bool = (
             goal_distance(achieved_goal, desired_goal) < self.distance_threshold
-        )
-        return is_success
+        ) and self.terminate_upon_success
+        obstacle_moved: bool = (
+            np.linalg.norm(self.step_obstacle_displacement) > self.distance_threshold
+        ) and self.terminate_upon_collision
+        terminated: bool = is_success or obstacle_moved
+        return terminated
 
     def _sample_goal(self):
         if self.has_object:
