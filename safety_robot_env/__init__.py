@@ -22,3 +22,10 @@ register(
         "render_mode": "rgb_array",
     },
 )
+
+register(
+    id="FetchPush-v0",
+    entry_point="safety_robot_env.envs.fetch.push:MujocoFetchPushEnv",
+    max_episode_steps=50,
+    kwargs={"reward_type": "dense", "render_mode": "rgb_array"},
+)
