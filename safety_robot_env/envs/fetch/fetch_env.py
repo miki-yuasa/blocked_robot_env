@@ -362,9 +362,9 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             return -(d > self.distance_threshold).astype(np.float32)
         else:
             reward: NDArray[np.float64] = -d
-            reward += self.goal_reward * (d < self.distance_threshold).astype(
-                np.float64
-            )
+            # reward += self.goal_reward * (d < self.distance_threshold).astype(
+            #     np.float64
+            # )
             if self.obstacle_penalty:
                 displacements: NDArray[np.float64] = goal_distance(
                     disp_achieved_goal, disp_desired_goal
@@ -417,8 +417,7 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
                 obstacle_pos.ravel(),
                 object_rel_pos.ravel(),
                 obstacle_rel_pos.ravel(),
-                # self.init_obstacle_pos.ravel(),
-                self.cumulative_obstacle_displacement.ravel(),
+                self.step_obstacle_displacement.ravel(),
                 gripper_state,
                 object_rot.ravel(),
                 obstacle_rot.ravel(),
