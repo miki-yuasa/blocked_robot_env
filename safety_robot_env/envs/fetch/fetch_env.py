@@ -239,7 +239,7 @@ class MujocoFetchEnv(BaseFetchEnv):
         site_id = self._mujoco.mj_name2id(
             self.model, self._mujoco.mjtObj.mjOBJ_SITE, "target0"
         )
-        self.model.site_pos[site_id] = self.goal - sites_offset[0]
+        self.model.site_pos[site_id] = self.goal[:3] - sites_offset[0]
         self._mujoco.mj_forward(self.model, self.data)
 
     def _reset_sim(self) -> bool:
@@ -300,15 +300,6 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
 
     def __init__(
         self,
-        gripper_extra_height: float,
-        block_gripper: bool,
-        has_object: bool,
-        target_in_the_air: bool,
-        target_offset: float | NDArray[np.float64],
-        obj_range: float,
-        target_range: float,
-        distance_threshold: float,
-        reward_type: Literal["sparse", "dense"],
         goal_reward: float = 10.0,
         obstacle_penalty: bool = True,
         default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
@@ -331,15 +322,6 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             reward_type ('sparse' or 'dense'): the reward type, i.e. sparse or dense
         """
 
-        self.gripper_extra_height: float = gripper_extra_height
-        self.block_gripper: bool = block_gripper
-        self.has_object: bool = has_object
-        self.target_in_the_air: bool = target_in_the_air
-        self.target_offset: float | NDArray[np.float64] = target_offset
-        self.obj_range: float = obj_range
-        self.target_range: float = target_range
-        self.distance_threshold: float = distance_threshold
-        self.reward_type: Literal["sparse", "dense"] = reward_type
         self.goal_reward: float = goal_reward
         self.obstacle_penalty: bool = obstacle_penalty
 
@@ -347,14 +329,12 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
         self.step_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
 
+        super().__init__(default_camera_config=default_camera_config, **kwargs)
+
         if self.reward_type not in ["sparse", "dense"]:
             raise ValueError("Invalid reward type. Must be either 'sparse' or 'dense'.")
         else:
             pass
-
-        super().__init__(
-            n_actions=4, default_camera_config=default_camera_config, **kwargs
-        )
 
     # GoalEnv methods
     # ----------------------------
@@ -389,7 +369,10 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
                     displacements > self.distance_threshold
                 ).astype(np.float64)
 
-            return reward
+            if reward.size == 1:
+                return reward.item()
+            else:
+                return reward
 
     # RobotEnv methods
     # ----------------------------
@@ -566,6 +549,7 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         if self.has_object:
 
             # Add the obstacle position, rotation, velocity, and angular velocity to the observation (from "object1")
+            dt = self.n_substeps * self.model.opt.timestep
             obstacle_pos: NDArray[np.float64] = self._utils.get_site_xpos(
                 self.model, self.data, "object1"
             )
