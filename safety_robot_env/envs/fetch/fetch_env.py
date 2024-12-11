@@ -702,29 +702,6 @@ class MujocoFetchEnv(BaseFetchEnv):
         self.model.site_pos[site_id] = self.goal - sites_offset[0]
         self._mujoco.mj_forward(self.model, self.data)
 
-    def _reset_sim_sub(self):
-        # Reset buffers for joint states, actuators, warm-start, control buffers etc.
-        self._mujoco.mj_resetData(self.model, self.data)
-
-        # Randomize start position of object.
-        if self.has_object:
-            object_xpos = self.initial_gripper_xpos[:2]
-            while np.linalg.norm(object_xpos - self.initial_gripper_xpos[:2]) < 0.1:
-                object_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
-                    -self.obj_range, self.obj_range, size=2
-                )
-            object_qpos = self._utils.get_joint_qpos(
-                self.model, self.data, "object0:joint"
-            )
-            assert object_qpos.shape == (7,)
-            object_qpos[:2] = object_xpos
-            self._utils.set_joint_qpos(
-                self.model, self.data, "object0:joint", object_qpos
-            )
-
-        self._mujoco.mj_forward(self.model, self.data)
-        return True
-
     def _reset_sim(self) -> bool:
         self.data.time = self.initial_time
         self.data.qpos[:] = np.copy(self.initial_qpos)
