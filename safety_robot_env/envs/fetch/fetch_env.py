@@ -372,7 +372,7 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
                 # reward -= self.goal_reward * (
                 #     displacements > self.distance_threshold
                 # ).astype(np.float64)
-                reward -= self.goal_reward * 10 * displacements
+                reward -= self.goal_reward * displacements
 
             if reward.size == 1:
                 return reward.item()
