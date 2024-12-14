@@ -533,6 +533,14 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
 
     def _sample_goal(self):
         if self.has_object:
+            goal = self.initial_gripper_xpos[:3]
+            while (
+                np.linalg.norm(goal - self.initial_gripper_xpos[:3]) < self.target_range
+                or np.linalg.norm(goal - self.init_object_pos[:3]) < self.target_range
+            ):
+                goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
+                    -self.target_range, self.target_range, size=3
+                )
             goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
                 -self.target_range, self.target_range, size=3
             )
@@ -629,8 +637,9 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             obstacle_xpos = self.initial_gripper_xpos[:2]
             # Ensure obstacle is not placed on top of object and is not too close to the gripper
             while (
-                np.linalg.norm(obstacle_xpos - self.initial_gripper_xpos[:2]) < 0.1
-                or np.linalg.norm(obstacle_xpos - object_xpos) < 0.1
+                np.linalg.norm(obstacle_xpos - self.initial_gripper_xpos[:2])
+                < self.obj_range
+                or np.linalg.norm(obstacle_xpos - object_xpos) < self.obj_range
             ):
                 obstacle_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
                     -self.obj_range, self.obj_range, size=2
