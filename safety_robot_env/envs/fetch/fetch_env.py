@@ -369,9 +369,10 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
                 displacements: NDArray[np.float64] = goal_distance(
                     disp_achieved_goal, disp_desired_goal
                 )
-                reward -= self.goal_reward * (
-                    displacements > self.distance_threshold
-                ).astype(np.float64)
+                # reward -= self.goal_reward * (
+                #     displacements > self.distance_threshold
+                # ).astype(np.float64)
+                reward -= self.goal_reward * 10 * displacements
 
             if reward.size == 1:
                 return reward.item()
