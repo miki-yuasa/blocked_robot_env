@@ -6,10 +6,10 @@ import imageio
 import safety_robot_env
 
 
-def test_env_init() -> None:
+def test_blocked_env_init() -> None:
     animation_save_path: str = "tests/out/plots/test_blocked_push_env.gif"
     os.environ["MUJOCO_GL"] = "osmesa"
-    env = gym.make("BlockedFetchPush-v0")
+    env = gym.make("BlockedFetchPush-v0", max_episode_steps=100)
 
     obs, _ = env.reset()
     frames = [env.render()]
@@ -33,7 +33,7 @@ def test_env_init() -> None:
     assert os.path.exists(animation_save_path)
 
 
-def test_blocked_env_init() -> None:
+def test_default_env_init() -> None:
     animation_save_path: str = "tests/out/plots/test_default_push_env.gif"
     os.environ["MUJOCO_GL"] = "osmesa"
     env = gym.make("FetchPush-v0")
