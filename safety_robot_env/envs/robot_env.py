@@ -3,6 +3,7 @@ import os
 from typing import Optional, Union
 
 import numpy as np
+import gymnasium as gym
 from gymnasium import error, logger, spaces
 
 from gymnasium_robotics.core import GoalEnv
@@ -283,13 +284,21 @@ class MujocoRobotEnv(BaseRobotEnv):
 
         from gymnasium.envs.mujoco.mujoco_rendering import MujocoRenderer
 
-        self.mujoco_renderer = MujocoRenderer(
-            self.model,
-            self.data,
-            default_camera_config,
-            width=self.width,
-            height=self.height,
-        )
+        # Check if the gymnasium version is higher than 1.0.0
+        if gym.__version__ >= "1.0.0":
+            self.mujoco_renderer = MujocoRenderer(
+                self.model,
+                self.data,
+                default_camera_config,
+                width=self.width,
+                height=self.height,
+            )
+        else:
+            self.mujoco_renderer = MujocoRenderer(
+                self.model,
+                self.data,
+                default_camera_config,
+            )
 
     def _initialize_simulation(self):
         self.model = self._mujoco.MjModel.from_xml_path(self.fullpath)
