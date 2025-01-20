@@ -1,5 +1,6 @@
 import os
 
+import numpy as np
 import gymnasium as gym
 import imageio
 
@@ -11,8 +12,13 @@ def test_blocked_env_init() -> None:
     os.environ["MUJOCO_GL"] = "osmesa"
     env = gym.make("BlockedFetchPush-v0", max_episode_steps=100)
 
-    obs, _ = env.reset()
+    obs, info = env.reset()
     frames = [env.render()]
+
+    init_obj_pos = info["init_object_pos"]
+    init_obs_pos = info["init_obstacle_pos"]
+
+    assert np.linalg.norm(init_obj_pos[:2] - init_obs_pos[:2]) >= 0.1
 
     step_count: int = 0
     for _ in range(2 * env._max_episode_steps):
