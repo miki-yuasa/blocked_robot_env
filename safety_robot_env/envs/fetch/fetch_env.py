@@ -23,6 +23,7 @@ class BaseFetchEnv(MujocoRobotEnv):
         target_offset: float | NDArray[np.float64],
         obj_range: float,
         target_range: float,
+        obj_clearance: float,
         distance_threshold: float,
         reward_type: Literal["sparse", "dense"],
         **kwargs,
@@ -44,15 +45,16 @@ class BaseFetchEnv(MujocoRobotEnv):
             reward_type ('sparse' or 'dense'): the reward type, i.e. sparse or dense
         """
 
-        self.gripper_extra_height = gripper_extra_height
-        self.block_gripper = block_gripper
-        self.has_object = has_object
-        self.target_in_the_air = target_in_the_air
-        self.target_offset = target_offset
-        self.obj_range = obj_range
-        self.target_range = target_range
-        self.distance_threshold = distance_threshold
-        self.reward_type = reward_type
+        self.gripper_extra_height: float = gripper_extra_height
+        self.block_gripper: bool = block_gripper
+        self.has_object: bool = has_object
+        self.target_in_the_air: bool = target_in_the_air
+        self.target_offset: float | NDArray[np.float64] = target_offset
+        self.obj_range: float = obj_range
+        self.target_range: float = target_range
+        self.obj_clearance: float = obj_clearance
+        self.distance_threshold: float = distance_threshold
+        self.reward_type: Literal["sparse", "dense"] = reward_type
 
         super().__init__(n_actions=4, **kwargs)
 
@@ -536,15 +538,12 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         if self.has_object:
             goal = self.initial_gripper_xpos[:3]
             while (
-                np.linalg.norm(goal - self.initial_gripper_xpos[:3]) < self.target_range
-                or np.linalg.norm(goal - self.init_object_pos[:3]) < self.target_range
+                np.linalg.norm(goal - self.init_obstacle_pos[:3]) < self.obj_clearance
             ):
                 goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
                     -self.target_range, self.target_range, size=3
                 )
-            goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
-                -self.target_range, self.target_range, size=3
-            )
+
             goal += self.target_offset
             goal[2] = self.height_offset
             if self.target_in_the_air and self.np_random.uniform() < 0.5:
@@ -639,8 +638,8 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             # Ensure obstacle is not placed on top of object and is not too close to the gripper
             while (
                 np.linalg.norm(obstacle_xpos - self.initial_gripper_xpos[:2])
-                < self.obj_range
-                or np.linalg.norm(obstacle_xpos - object_xpos) < self.obj_range
+                < self.obj_clearance
+                or np.linalg.norm(obstacle_xpos - object_xpos) < self.obj_clearance
             ):
                 obstacle_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
                     -self.obj_range, self.obj_range, size=2

@@ -324,6 +324,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
         n_substeps: int = 20,
         obj_range: float = 0.15,
         target_range: float = 0.15,
+        obj_clearance: float = 0.1,
         distance_threshold: float = 0.05,
         terminate_upon_success: bool = True,
         terminate_upon_collision: bool = False,
@@ -348,6 +349,8 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             The range of the object position when resetting the environment.
         target_range : float = 0.15
             The range of the target position when resetting the environment.
+        obj_clearance : float = 0.1
+            The minimum distance between the object and the gripper when resetting the environment.
         distance_threshold : float = 0.05
             The distance threshold to consider the goal as achieved.
         terminate_upon_success : bool = True
@@ -375,6 +378,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             target_offset=0.0,
             obj_range=obj_range,
             target_range=target_range,
+            obj_clearance=obj_clearance,
             distance_threshold=distance_threshold,
             initial_qpos=initial_qpos,
             reward_type=reward_type,
@@ -395,6 +399,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             target_offset=0.0,
             obj_range=obj_range,
             target_range=target_range,
+            obj_clearance=obj_clearance,
             distance_threshold=distance_threshold,
             initial_qpos=initial_qpos,
             reward_type=reward_type,
