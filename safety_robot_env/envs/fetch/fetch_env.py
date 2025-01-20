@@ -633,7 +633,9 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         if self.has_object:
 
             # Randomize start position of obstacle.
-            object_xpos = self.initial_gripper_xpos[:2]
+            object_xpos = self._utils.get_joint_qpos(
+                self.model, self.data, "object0:joint"
+            )[:2]
             obstacle_xpos = self.initial_gripper_xpos[:2]
             # Ensure obstacle is not placed on top of object and is not too close to the gripper
             while (
