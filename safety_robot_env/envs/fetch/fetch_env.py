@@ -302,8 +302,8 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
 
     def __init__(
         self,
-        goal_reward: float = 10.0,
-        obstacle_penalty: bool = True,
+        obstacle_penalty: Literal["step", "cumulative"] = "step",
+        penalty_scale: float = 0.0,
         terminate_upon_success: bool = True,
         terminate_upon_collision: bool = False,
         default_camera_config: dict = DEFAULT_CAMERA_CONFIG,
@@ -311,23 +311,45 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
     ):
         """Initializes a new Fetch environment.
 
-        Args:
-            model_path (string): path to the environments XML file
-            n_substeps (int): number of substeps the simulation runs on every call to step
-            gripper_extra_height (float): additional height above the table when positioning the gripper
-            block_gripper (boolean): whether or not the gripper is blocked (i.e. not movable) or not
-            has_object (boolean): whether or not the environment has an object
-            target_in_the_air (boolean): whether or not the target should be in the air above the table or on the table surface
-            target_offset (float or array with 3 elements): offset of the target
-            obj_range (float): range of a uniform distribution for sampling initial object positions
-            target_range (float): range of a uniform distribution for sampling a target
-            distance_threshold (float): the threshold after which a goal is considered achieved
-            initial_qpos (dict): a dictionary of joint names and values that define the initial configuration
-            reward_type ('sparse' or 'dense'): the reward type, i.e. sparse or dense
+        Parameters
+        ----------
+        model_path : string
+            Path to the environments XML file
+        n_substeps : int
+            Number of substeps the simulation runs on every call to step
+        gripper_extra_height : float
+            Additional height above the table when positioning the gripper
+        block_gripper : bool
+            Whether or not the gripper is blocked (i.e. not movable) or not
+        has_object : bool
+            Whether or not the environment has an object
+        target_in_the_air : bool
+            Whether or not the target should be in the air above the table or on the table surface
+        target_offset : float or array with 3 elements
+            Offset of the target
+        obj_range : float
+            Range of a uniform distribution for sampling initial object positions
+        target_range : float
+            Range of a uniform distribution for sampling a target
+        obj_clearance : float = 0.1
+            The minimum distance between the object and the gripper when resetting the environment.
+        distance_threshold : float
+            The threshold after which a goal is considered achieved
+        initial_qpos : dict
+            A dictionary of joint names and values that define the initial configuration
+        reward_type : typing.Literal['sparse', 'dense'] = 'sparse'
+            The reward type, i.e. sparse or dense
+        penalty_scale : float = 0.0
+            The scale factor to apply to the obstacle penalty.
+            It is used as a multiplier to the obstacle displacement e.g., penalty = penalty_scale * displacement.
+        terminate_upon_success : bool = True
+            Whether the environment is terminated upon success.
+        terminate_upon_collision : bool = False
+            Whether the environment is terminated upon collision.
         """
 
-        self.goal_reward: float = goal_reward
-        self.obstacle_penalty: bool = obstacle_penalty
+        self.penalty_scale: float = penalty_scale
+        self.obstacle_penalty: Literal["step", "cumulative"] = obstacle_penalty
         self.terminate_upon_success: bool = terminate_upon_success
         self.terminate_upon_collision: bool = terminate_upon_collision
 
@@ -364,17 +386,16 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             return -(d > self.distance_threshold).astype(np.float32)
         else:
             reward: NDArray[np.float64] = -d
-            # reward += self.goal_reward * (d < self.distance_threshold).astype(
+            # reward += self.penalty_scale * (d < self.distance_threshold).astype(
             #     np.float64
             # )
-            if self.obstacle_penalty:
-                displacements: NDArray[np.float64] = goal_distance(
-                    disp_achieved_goal, disp_desired_goal
-                )
-                # reward -= self.goal_reward * (
-                #     displacements > self.distance_threshold
-                # ).astype(np.float64)
-                reward -= self.goal_reward * displacements
+            displacements: NDArray[np.float64] = goal_distance(
+                disp_achieved_goal, disp_desired_goal
+            )
+            # reward -= self.penalty_scale * (
+            #     displacements > self.distance_threshold
+            # ).astype(np.float64)
+            reward -= self.penalty_scale * displacements
 
             if reward.size == 1:
                 return reward.item()
@@ -433,16 +454,17 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             ]
         )
 
-        achieved_goal = np.concatenate(
-            [
-                object_pos.copy(),
-                (
-                    self.step_obstacle_displacement.copy()
-                    if self.obstacle_penalty
-                    else np.zeros(3)
-                ),
-            ]
-        )
+        displacement: NDArray[np.float64] = np.zeros(3)
+        if self.obstacle_penalty == "cumulative":
+            displacement = self.cumulative_obstacle_displacement
+        elif self.obstacle_penalty == "step":
+            displacement = self.step_obstacle_displacement
+        else:
+            raise ValueError(
+                "Invalid obstacle penalty type. Must be either 'cumulative' or 'step'."
+            )
+
+        achieved_goal = np.concatenate([object_pos.copy(), displacement.copy()])
 
         return {
             "observation": obs.copy(),

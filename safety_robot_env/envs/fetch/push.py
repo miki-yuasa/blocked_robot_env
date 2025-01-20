@@ -318,8 +318,8 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
     def __init__(
         self,
         reward_type: Literal["sparse", "dense"] = "dense",
-        obstacle_penalty: bool = True,
-        goal_reward: float = 0.0,
+        obstacle_penalty: Literal["step", "cumulative"] = "step",
+        penalty_scale: float = 0.0,
         model_path: str = MODEL_XML_PATH,
         n_substeps: int = 20,
         obj_range: float = 0.15,
@@ -337,10 +337,14 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
         ----------
         reward_type : typing.Literal["sparse", "dense"] = "dense"
             The reward type to use. Can be either "sparse" or "dense".
-        obstacle_penalty : bool = True
-            If True, penalize the agent for moving the obstacle.
-        goal_reward : float = 0.0
-            The reward to give the agent when it reaches the goal.
+        obstacle_penalty : typing.Literal["step", "cumulative"] | None = "step"
+            The penalty type to use when the robot collides with the obstacle.
+            Can be either "step" or "cumulative".
+            "step" means that the obstacle displacement is applied at each timestep as a penalty.
+            "cumulative" means that the obstacle displacement is accumulated and applied as a penalty at each timestep.
+        penalty_scale : float = 0.0
+            The scale factor to apply to the obstacle penalty.
+            It is used as a multiplier to the obstacle displacement e.g., penalty = penalty_scale * displacement.
         model_path : str = fetch/blocked_push.xml
             The path to the XML model file.
         n_substeps : int = 20
@@ -382,7 +386,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             distance_threshold=distance_threshold,
             initial_qpos=initial_qpos,
             reward_type=reward_type,
-            goal_reward=goal_reward,
+            penalty_scale=penalty_scale,
             obstacle_penalty=obstacle_penalty,
             terminate_upon_success=terminate_upon_success,
             terminate_upon_collision=terminate_upon_collision,
@@ -403,7 +407,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             distance_threshold=distance_threshold,
             initial_qpos=initial_qpos,
             reward_type=reward_type,
-            goal_reward=goal_reward,
+            penalty_scale=penalty_scale,
             obstacle_penalty=obstacle_penalty,
             terminate_upon_success=terminate_upon_success,
             terminate_upon_collision=terminate_upon_collision,
