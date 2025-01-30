@@ -24,6 +24,7 @@ class BaseFetchEnv(MujocoRobotEnv):
         obj_range: float,
         target_range: float,
         obj_clearance: float,
+        obs_clearance: float,
         distance_threshold: float,
         reward_type: Literal["sparse", "dense"],
         **kwargs,
@@ -53,6 +54,7 @@ class BaseFetchEnv(MujocoRobotEnv):
         self.obj_range: float = obj_range
         self.target_range: float = target_range
         self.obj_clearance: float = obj_clearance
+        self.obs_clearance: float = obs_clearance
         self.distance_threshold: float = distance_threshold
         self.reward_type: Literal["sparse", "dense"] = reward_type
 
@@ -560,7 +562,7 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         if self.has_object:
             goal = self.initial_gripper_xpos[:3]
             while (
-                np.linalg.norm(goal - self.init_obstacle_pos[:3]) < self.obj_clearance
+                np.linalg.norm(goal - self.init_obstacle_pos[:3]) < self.obs_clearance
             ):
                 goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
                     -self.target_range, self.target_range, size=3
@@ -662,7 +664,7 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             # Ensure obstacle is not placed on top of object and is not too close to the gripper
             while (
                 np.linalg.norm(obstacle_xpos - self.initial_gripper_xpos[:2])
-                < self.obj_clearance
+                < self.obs_clearance
                 or np.linalg.norm(obstacle_xpos - object_xpos) < self.obj_clearance
             ):
                 obstacle_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
