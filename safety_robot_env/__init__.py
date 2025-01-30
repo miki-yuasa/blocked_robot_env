@@ -18,6 +18,7 @@ register(
         "obj_range": 0.15,
         "target_range": 0.15,
         "obj_clearance": 0.1,
+        "obs_clearance": 0.1,
         "distance_threshold": 0.05,
         "terminate_upon_success": False,
         "terminate_upon_collision": False,
