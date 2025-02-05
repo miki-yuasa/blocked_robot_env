@@ -425,10 +425,32 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
 
     def _get_obs(self) -> dict[str, NDArray[np.float64]]:
         dict_obs: dict[str, NDArray[np.float64]] = self.generate_mujoco_observations()
-        obs = np.concatenate(
-            [value.ravel() for value in dict_obs.values()]
-            + [self.step_obstacle_displacement.ravel()]
-        )
+        if self.num_obs != 1:
+            obs = np.concatenate(
+                [value.ravel() for value in dict_obs.values()]
+                + [self.step_obstacle_displacement.ravel()]
+            )
+        else:
+            obs_name: str = self.obs_names[0]
+            obs = np.concatenate(
+                [
+                    dict_obs["grip_pos"].ravel(),
+                    dict_obs["object_pos"].ravel(),
+                    dict_obs[obs_name + "_pos"].ravel(),
+                    dict_obs["object_rel_pos"].ravel(),
+                    dict_obs[obs_name + "_rel_pos"].ravel(),
+                    self.step_obstacle_displacement.ravel(),
+                    dict_obs["gripper_state"],
+                    dict_obs["object_rot"].ravel(),
+                    dict_obs[obs_name + "_rot"].ravel(),
+                    dict_obs["object_velp"].ravel(),
+                    dict_obs[obs_name + "_velp"].ravel(),
+                    dict_obs["object_velr"].ravel(),
+                    dict_obs[obs_name + "_velr"].ravel(),
+                    dict_obs["grip_velp"].ravel(),
+                    dict_obs["gripper_vel"].ravel(),
+                ]
+            )
 
         displacement: NDArray[np.float64] = np.zeros(3)
         if self.obstacle_penalty == "cumulative":
