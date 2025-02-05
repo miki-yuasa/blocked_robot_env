@@ -305,6 +305,7 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
     def __init__(
         self,
         obstacle_penalty: Literal["step", "cumulative"] = "step",
+        num_obs: int = 1,
         penalty_scale: float = 0.0,
         terminate_upon_success: bool = True,
         terminate_upon_collision: bool = False,
@@ -352,12 +353,16 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
 
         self.penalty_scale: float = penalty_scale
         self.obstacle_penalty: Literal["step", "cumulative"] = obstacle_penalty
+        self.num_obs: int = num_obs
         self.terminate_upon_success: bool = terminate_upon_success
         self.terminate_upon_collision: bool = terminate_upon_collision
 
-        self.init_obstacle_pos: NDArray[np.float64] = np.zeros(3)
+        self.init_obstacle_pos: list[NDArray[np.float64]] = [
+            np.zeros(3) for _ in range(self.num_obs)
+        ]
         self.cumulative_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
         self.step_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
+        self.obs_names: list[str] = [f"object{i+1}" for i in range(self.num_obs)]
 
         super().__init__(default_camera_config=default_camera_config, **kwargs)
 
@@ -419,41 +424,10 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         return obs, info
 
     def _get_obs(self) -> dict[str, NDArray[np.float64]]:
-        (
-            grip_pos,
-            object_pos,
-            obstacle_pos,
-            object_rel_pos,
-            obstacle_rel_pos,
-            gripper_state,
-            object_rot,
-            obstacle_rot,
-            object_velp,
-            object_velr,
-            obstacle_velp,
-            obstacle_velr,
-            grip_velp,
-            gripper_vel,
-        ) = self.generate_mujoco_observations()
-
+        dict_obs: dict[str, NDArray[np.float64]] = self.generate_mujoco_observations()
         obs = np.concatenate(
-            [
-                grip_pos,
-                object_pos.ravel(),
-                obstacle_pos.ravel(),
-                object_rel_pos.ravel(),
-                obstacle_rel_pos.ravel(),
-                self.step_obstacle_displacement.ravel(),
-                gripper_state,
-                object_rot.ravel(),
-                obstacle_rot.ravel(),
-                object_velp.ravel(),
-                object_velr.ravel(),
-                obstacle_velp.ravel(),
-                obstacle_velr.ravel(),
-                grip_velp.ravel(),
-                gripper_vel.ravel(),
-            ]
+            [value.ravel() for value in dict_obs.values()]
+            + [self.step_obstacle_displacement.ravel()]
         )
 
         displacement: NDArray[np.float64] = np.zeros(3)
@@ -466,7 +440,9 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
                 "Invalid obstacle penalty type. Must be either 'cumulative' or 'step'."
             )
 
-        achieved_goal = np.concatenate([object_pos.copy(), displacement.copy()])
+        achieved_goal = np.concatenate(
+            [dict_obs["object_pos"].copy(), displacement.copy()]
+        )
 
         return {
             "observation": obs.copy(),
@@ -475,39 +451,8 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         }
 
     def _get_dict_obs(self) -> dict[str, NDArray[np.float64]]:
-        (
-            grip_pos,
-            object_pos,
-            obstacle_pos,
-            object_rel_pos,
-            obstacle_rel_pos,
-            gripper_state,
-            object_rot,
-            obstacle_rot,
-            object_velp,
-            object_velr,
-            obstacle_velp,
-            obstacle_velr,
-            grip_velp,
-            gripper_vel,
-        ) = self.generate_mujoco_observations()
 
-        dict_obs: dict[str, NDArray[np.float64]] = {
-            "grip_pos": grip_pos,
-            "object_pos": object_pos,
-            "obstacle_pos": obstacle_pos,
-            "object_rel_pos": object_rel_pos,
-            "obstacle_rel_pos": obstacle_rel_pos,
-            "gripper_state": gripper_state,
-            "object_rot": object_rot,
-            "obstacle_rot": obstacle_rot,
-            "object_velp": object_velp,
-            "object_velr": object_velr,
-            "obstacle_velp": obstacle_velp,
-            "obstacle_velr": obstacle_velr,
-            "grip_velp": grip_velp,
-            "gripper_vel": gripper_vel,
-        }
+        dict_obs: dict[str, NDArray[np.float64]] = self.generate_mujoco_observations()
 
         return dict_obs
 
@@ -561,12 +506,18 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
     def _sample_goal(self):
         if self.has_object:
             goal = self.initial_gripper_xpos[:3]
-            while (
-                np.linalg.norm(goal - self.init_obstacle_pos[:3]) < self.obs_clearance
-            ):
+            # Ensure goal is not too close to the obstacle
+            obstacles_clear: bool = False
+            while not obstacles_clear:
                 goal = self.initial_gripper_xpos[:3] + self.np_random.uniform(
                     -self.target_range, self.target_range, size=3
                 )
+
+                for obs_pos in self.init_obstacle_pos:
+                    if np.linalg.norm(goal[:2] - obs_pos[:2]) <= self.obs_clearance:
+                        break
+                    else:
+                        obstacles_clear = True
 
             goal += self.target_offset
             goal[2] = self.height_offset
@@ -585,17 +536,20 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
         super()._step_callback()
 
         # Record the displacement of the obstacle
-        curr_obstacle_pos: NDArray[np.float64] = self._utils.get_site_xpos(
-            self.model, self.data, "object1"
-        )
-        step_obstacle_displacement: NDArray[np.float64] = (
-            curr_obstacle_pos - self.prev_obstacle_pos
-        )
+        step_obstacle_displacement: NDArray[np.float64] = np.zeros(3)
+        curr_obs_pos_list: list[NDArray[np.float64]] = []
+        for i, obs_name in enumerate(self.obs_names):
+            curr_obstacle_pos: NDArray[np.float64] = self._utils.get_site_xpos(
+                self.model, self.data, obs_name
+            )
+            step_obstacle_displacement += curr_obstacle_pos - self.prev_obstacle_pos[i]
+            curr_obs_pos_list.append(curr_obstacle_pos)
+
         self.cumulative_obstacle_displacement += step_obstacle_displacement
         self.step_obstacle_displacement = step_obstacle_displacement
-        self.prev_obstacle_pos = curr_obstacle_pos
+        self.prev_obstacle_pos = curr_obs_pos_list
 
-    def generate_mujoco_observations(self) -> tuple[NDArray[np.float64], ...]:
+    def generate_mujoco_observations(self) -> dict[str, NDArray[np.float64]]:
         # positions
         (
             grip_pos,
@@ -609,46 +563,49 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             gripper_vel,
         ) = super().generate_mujoco_observations()
 
-        if self.has_object:
+        output_dict: dict[str, NDArray[np.float64]] = {
+            "grip_pos": grip_pos,
+            "object_pos": object_pos,
+            "object_rel_pos": object_rel_pos,
+            "gripper_state": gripper_state,
+            "object_rot": object_rot,
+            "object_velp": object_velp,
+            "object_velr": object_velr,
+            "grip_velp": grip_velp,
+            "gripper_vel": gripper_vel,
+        }
 
-            # Add the obstacle position, rotation, velocity, and angular velocity to the observation (from "object1")
-            dt = self.n_substeps * self.model.opt.timestep
-            obstacle_pos: NDArray[np.float64] = self._utils.get_site_xpos(
-                self.model, self.data, "object1"
-            )
-            obstacle_rot: NDArray[np.float64] = rotations.mat2euler(
-                self._utils.get_site_xmat(self.model, self.data, "object1")
-            )
-            obstacle_velp = (
-                self._utils.get_site_xvelp(self.model, self.data, "object1") * dt
-            )
-            obstacle_velr = (
-                self._utils.get_site_xvelr(self.model, self.data, "object1") * dt
-            )
-            # gripper state
-            obstacle_rel_pos = obstacle_pos - grip_pos
-            obstacle_velp -= grip_velp
+        if self.has_object:
+            for obs_name in self.obs_names:
+                # Add the obstacle position, rotation, velocity, and angular velocity to the observation (from "object1")
+                dt = self.n_substeps * self.model.opt.timestep
+                obstacle_pos: NDArray[np.float64] = self._utils.get_site_xpos(
+                    self.model, self.data, obs_name
+                )
+                obstacle_rot: NDArray[np.float64] = rotations.mat2euler(
+                    self._utils.get_site_xmat(self.model, self.data, obs_name)
+                )
+                obstacle_velp = (
+                    self._utils.get_site_xvelp(self.model, self.data, obs_name) * dt
+                )
+                obstacle_velr = (
+                    self._utils.get_site_xvelr(self.model, self.data, obs_name) * dt
+                )
+                # gripper state
+                obstacle_rel_pos = obstacle_pos - grip_pos
+                obstacle_velp -= grip_velp
+
+                output_dict[obs_name + "_pos"] = obstacle_pos
+                output_dict[obs_name + "_rot"] = obstacle_rot
+                output_dict[obs_name + "_velp"] = obstacle_velp
+                output_dict[obs_name + "_velr"] = obstacle_velr
+                output_dict[obs_name + "_rel_pos"] = obstacle_rel_pos
         else:
             object_pos = object_rot = object_velp = object_velr = object_rel_pos = (
                 np.zeros(0)
             )
 
-        return (
-            grip_pos,
-            object_pos,
-            obstacle_pos,
-            object_rel_pos,
-            obstacle_rel_pos,
-            gripper_state,
-            object_rot,
-            obstacle_rot,
-            object_velp,
-            object_velr,
-            obstacle_velp,
-            obstacle_velr,
-            grip_velp,
-            gripper_vel,
-        )
+        return output_dict
 
     def _reset_sim(self) -> bool:
         super()._reset_sim()
@@ -660,35 +617,58 @@ class MujocoBlockedFetchEnv(MujocoFetchEnv):
             object_xpos = self._utils.get_joint_qpos(
                 self.model, self.data, "object0:joint"
             )[:2]
-            obstacle_xpos = self.initial_gripper_xpos[:2]
-            # Ensure obstacle is not placed on top of object and is not too close to the gripper
-            while (
-                np.linalg.norm(obstacle_xpos - self.initial_gripper_xpos[:2])
-                < self.obs_clearance
-                or np.linalg.norm(obstacle_xpos - object_xpos) < self.obj_clearance
-            ):
-                obstacle_xpos = self.initial_gripper_xpos[:2] + self.np_random.uniform(
-                    -self.obj_range, self.obj_range, size=2
+
+            placed_obstacle_xpos_list: list[NDArray[np.float64]] = []
+
+            init_obs_pos_list: list[NDArray[np.float64]] = []
+
+            for obs_name in self.obs_names:
+                obstacle_xpos = self.initial_gripper_xpos[:2]
+                cleared_with_placed_obstacles: bool = False
+                # Ensure obstacle is not placed on top of object and is not too close to the gripper
+                while (
+                    np.linalg.norm(obstacle_xpos - self.initial_gripper_xpos[:2])
+                    < self.obs_clearance
+                    or np.linalg.norm(obstacle_xpos - object_xpos) < self.obj_clearance
+                    or not cleared_with_placed_obstacles
+                ):
+                    obstacle_xpos = self.initial_gripper_xpos[
+                        :2
+                    ] + self.np_random.uniform(-self.obj_range, self.obj_range, size=2)
+
+                    if len(placed_obstacle_xpos_list) > 0:
+                        cleared_with_placed_obstacles = True
+                        for placed_obstacle_xpos in placed_obstacle_xpos_list:
+                            if (
+                                np.linalg.norm(obstacle_xpos - placed_obstacle_xpos)
+                                < self.obs_clearance
+                            ):
+                                cleared_with_placed_obstacles = False
+                    else:
+                        cleared_with_placed_obstacles = True
+                obstacle_qpos = self._utils.get_joint_qpos(
+                    self.model, self.data, f"{obs_name}:joint"
                 )
-            obstacle_qpos = self._utils.get_joint_qpos(
-                self.model, self.data, "object1:joint"
-            )
-            assert obstacle_qpos.shape == (7,)
-            obstacle_qpos[:2] = obstacle_xpos
-            self._utils.set_joint_qpos(
-                self.model, self.data, "object1:joint", obstacle_qpos
-            )
+                assert obstacle_qpos.shape == (7,)
+                obstacle_qpos[:2] = obstacle_xpos
+                self._utils.set_joint_qpos(
+                    self.model, self.data, f"{obs_name}:joint", obstacle_qpos
+                )
+                placed_obstacle_xpos_list.append(obstacle_xpos)
+                init_obs_pos_list.append(
+                    self._utils.get_joint_qpos(
+                        self.model, self.data, f"{obs_name}:joint"
+                    )[:3]
+                )
 
             # Record the initial object and obstacle positions
             self.init_object_pos: NDArray[np.float64] = self._utils.get_joint_qpos(
                 self.model, self.data, "object0:joint"
             )[:3]
-            self.init_obstacle_pos = self._utils.get_joint_qpos(
-                self.model, self.data, "object1:joint"
-            )[:3]
+            self.init_obstacle_pos = init_obs_pos_list
             self.cumulative_obstacle_displacement = np.zeros(3)
             self.step_obstacle_displacement = np.zeros(3)
-            self.prev_obstacle_pos: NDArray[np.float64] = self.init_obstacle_pos
+            self.prev_obstacle_pos: list[NDArray[np.float64]] = self.init_obstacle_pos
 
         self._mujoco.mj_forward(self.model, self.data)
         return True

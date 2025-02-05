@@ -12,8 +12,8 @@ register(
     kwargs={
         "reward_type": "dense",
         "obstacle_penalty": "step",
+        "num_obs": 1,
         "penalty_scale": 1.0,
-        "model_path": os.path.join("fetch", "blocked_push.xml"),
         "n_substeps": 20,
         "obj_range": 0.15,
         "target_range": 0.15,

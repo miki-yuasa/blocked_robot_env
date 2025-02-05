@@ -319,8 +319,8 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
         self,
         reward_type: Literal["sparse", "dense"] = "dense",
         obstacle_penalty: Literal["step", "cumulative"] = "step",
-        penalty_scale: float = 0.0,
-        model_path: str = MODEL_XML_PATH,
+        num_obs: int = 1,
+        penalty_scale: float = 1.0,
         n_substeps: int = 20,
         obj_range: float = 0.15,
         target_range: float = 0.15,
@@ -365,13 +365,17 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
         kwargs : dict[str, typing.Any]
             Additional keyword arguments to pass to the superclass.
         """
+        model_path: str = MODEL_XML_PATH.replace(".xml", f"_{num_obs}.xml")
+
         initial_qpos = {
             "robot0:slide0": 0.405,
             "robot0:slide1": 0.48,
             "robot0:slide2": 0.0,
             "object0:joint": [1.25, 0.53, 0.4, 1.0, 0.0, 0.0, 0.0],
-            "object1:joint": [1.25, 0.75, 0.4, 1.0, 0.0, 0.0, 0.0],
         }
+        for i in range(num_obs):
+            initial_qpos[f"object{i+1}:joint"] = [1.25, 0.53, 0.4, 1.0, 0.0, 0.0, 0.0]
+
         MujocoBlockedFetchEnv.__init__(
             self,
             model_path=model_path,
@@ -390,6 +394,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
             reward_type=reward_type,
             penalty_scale=penalty_scale,
             obstacle_penalty=obstacle_penalty,
+            num_obs=num_obs,
             terminate_upon_success=terminate_upon_success,
             terminate_upon_collision=terminate_upon_collision,
             **kwargs,
@@ -397,6 +402,7 @@ class MujocoBlockedFetchPushEnv(MujocoBlockedFetchEnv, EzPickle):
         EzPickle.__init__(
             self,
             model_path=model_path,
+            num_obs=num_obs,
             has_object=True,
             block_gripper=True,
             n_substeps=n_substeps,
